@@ -1,32 +1,30 @@
 import cv2
-import os
-import glob
 import time
 from camera import Camera
 from matcher import Matcher
-from mechanics import reset, motor_on, motor_off, feed_card, lamp_on
+from mechanics import reset, motor_on, feed_card, lamp_on
 
 
 RANKS = "23456789TJQKA"
 SUITS = "CDHS"
 
+
 def make_pack():
     pack = {}
     for s in SUITS:
         for r in RANKS:
-            pack[r+s] = None
+            pack[r + s] = None
     return pack
+
 
 def suit_sorter():
     pack = {}
-    slots = {"C": "S",
-             "D": "W",
-             "H": "E",
-             "S": "N"}
+    slots = {"C": "S", "D": "W", "H": "E", "S": "N"}
     for s in SUITS:
         for r in RANKS:
-            pack[r+s] = slots[s]
+            pack[r + s] = slots[s]
     return pack
+
 
 def deal(pack):
     global cam, matcher
@@ -52,10 +50,9 @@ def deal(pack):
             cv2.waitKey(1)
             return
     reset()
-    
-    
 
-# reset()    
+
+# reset()
 # cam = Camera()
 # m = Matcher()
 # lamp_on()
@@ -75,12 +72,13 @@ def deal(pack):
 #         print("No card", e)
 #         input()
 
+
 def camera_test():
     global cam
     reset()
     lamp_on()
     motor_on()
-    time.sleep(.5)
+    time.sleep(0.5)
     cam.capture()
     while True:
         cam.read_card()
@@ -98,5 +96,3 @@ cam = Camera()
 matcher = Matcher()
 pack = suit_sorter()
 deal(pack)
-
-

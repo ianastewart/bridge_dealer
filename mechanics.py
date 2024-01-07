@@ -10,11 +10,12 @@ SOUTH_PIN = 29  # Relay 4
 FEED_PIN = 22  # External relay
 
 FEED_PULSE = 0.05
-DELAY_BASE = .4
-DELAY_INCREMENT = .3
+DELAY_BASE = 0.4
+DELAY_INCREMENT = 0.3
 
 RANK = "A23456789TJQK"
 SUIT = "CDHS"
+
 
 def configure_gpio():
     GPIO.setmode(GPIO.BOARD)
@@ -93,7 +94,7 @@ def feed(delay=1, cam=None):
             return False
     if cam:
         time.sleep(0.05)
-        cam.capture()    
+        cam.capture()
     time.sleep(FEED_PULSE)
     GPIO.output(FEED_PIN, GPIO.LOW)
     time.sleep(delay)
@@ -120,7 +121,7 @@ def feed_card(slot="N", cam=None):
         return True
     print("Feed error - Stopped for key")
     input()
-    
+
 
 def feed_pack(count=13):
     reset()
@@ -131,6 +132,7 @@ def feed_pack(count=13):
         feed_card("W")
         feed_card("S")
     reset()
+
 
 def gate_test():
     reset()

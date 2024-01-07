@@ -1,7 +1,5 @@
-from picamera2 import Picamera2, Preview
-import time
+from picamera2 import Picamera2
 import cv2
-import RPi.GPIO as GPIO
 
 # Crop positions
 X1 = 180
@@ -20,12 +18,13 @@ WIDTH = 130
 SUIT_HEIGHT = 150
 RANK_HEIGHT = 210
 
+
 class Camera:
     picam = None
     image = None
     suit_image = None
     rank_image = None
-    debug = 0 
+    debug = 0
 
     def __init__(self):
         self.picam2 = Picamera2()
@@ -37,7 +36,7 @@ class Camera:
     def capture(self):
         self.image = self.picam2.capture_array()
         self.suit_image = None
-        self.rank_image = None       
+        self.rank_image = None
         return self.image
 
     def process(self, suit=True):
@@ -56,15 +55,17 @@ class Camera:
         if self.debug > 1:
             cv2.imshow(f"{name} gray", gray)
             cv2.imshow(f"{name} thresh", thresh)
-        contours, hierarchy = cv2.findContours(binary, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+        contours, hierarchy = cv2.findContours(
+            binary, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE
+        )
         if len(contours) > 0:
             cont = max(contours, key=cv2.contourArea)
             x, y, w, h = cv2.boundingRect(cont)
             if suit:
-                cropped = binary[y:y+SUIT_HEIGHT, x:x+WIDTH]
+                cropped = binary[y : y + SUIT_HEIGHT, x : x + WIDTH]
                 sized = cv2.resize(cropped, (WIDTH, SUIT_HEIGHT))
             else:
-                cropped = binary[y:y+RANK_HEIGHT, x:x+WIDTH]
+                cropped = binary[y : y + RANK_HEIGHT, x : x + WIDTH]
                 sized = cv2.resize(cropped, (WIDTH, RANK_HEIGHT))
             if self.debug > 0:
                 cv2.imshow(f"{name} binary", sized)
@@ -79,11 +80,9 @@ class Camera:
         self.suit_image = self.process(suit=True)
         if self.suit_image is None:
             raise ValueError("No suit image")
-        self.rank_image = self.process(suit=False)        
+        self.rank_image = self.process(suit=False)
         if self.rank_image is None:
             raise ValueError("No rank image")
 
-        
     def stop(self):
         self.picam.stop()
-        
