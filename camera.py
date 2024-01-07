@@ -1,4 +1,8 @@
-from picamera2 import Picamera2
+PI = True
+try:
+    from picamera2 import Picamera2
+except ImportError:
+    PI = False
 import cv2
 
 # Crop positions
@@ -20,26 +24,32 @@ RANK_HEIGHT = 210
 
 
 class Camera:
-    picam = None
+    picam2 = None
     image = None
     suit_image = None
     rank_image = None
     debug = 0
 
     def __init__(self):
-        self.picam2 = Picamera2()
-        self.picam2.preview_configuration.main.size = (640, 480)
-        self.picam2.preview_configuration.main.format = "RGB888"
-        self.picam2.set_controls({"Contrast": 8})
-        self.picam2.start()
+        if PI:
+            self.picam2 = Picamera2()
+            self.picam2.preview_configuration.main.size = (640, 480)
+            self.picam2.preview_configuration.main.format = "RGB888"
+            self.picam2.set_controls({"Contrast": 8})
+            self.picam2.start()
 
     def capture(self):
-        self.image = self.picam2.capture_array()
+        if PI:
+            self.image = self.picam2.capture_array()
+        else:
+            self.image = None
         self.suit_image = None
         self.rank_image = None
         return self.image
 
     def process(self, suit=True):
+        if self.image is None:
+            return None
         if suit:
             crop = self.image[SUIT_Y1:SUIT_Y2, X1:X2].copy()
             threshold = SUIT_THRESHOLD
@@ -85,4 +95,5 @@ class Camera:
             raise ValueError("No rank image")
 
     def stop(self):
-        self.picam.stop()
+        if self.picam2:
+            self.picam2.stop()

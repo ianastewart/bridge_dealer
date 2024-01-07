@@ -1,5 +1,10 @@
 import time
-import RPi.GPIO as GPIO
+
+try:
+    import RPi.GPIO as GPIO
+except ImportError:
+    import Mock.GPIO as GPIO
+
 
 LAMP_PIN = 16
 CARD_FED_PIN = 18
