@@ -42,7 +42,7 @@ def parse_pbn(file_path: Path) -> List[Deal]:
     return result
 
 
-def create_packs(file_path: Path) -> List[Dict[str:str]]:
+def create_packs(file_path: Path) -> List[Dict[str, str]]:
 
     deals = parse_pbn(file_path)
     result = []

@@ -92,4 +92,5 @@ def camera_test():
 cam = Camera()
 matcher = Matcher()
 pack = suit_sorter()
-deal(pack)
+dealer = Dealer()
+dealer.deal(pack)
