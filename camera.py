@@ -89,11 +89,10 @@ class Camera:
 
     def read_card(self):
         self.suit_image = self.process(suit=True)
-        if self.suit_image is None:
-            raise ValueError("No suit image")
         self.rank_image = self.process(suit=False)
-        if self.rank_image is None:
-            raise ValueError("No rank image")
+        if self.rank_image is None or self.suit_image is None:
+            return False
+        return True
 
     def stop(self):
         if self.picam2:
