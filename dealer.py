@@ -22,6 +22,7 @@ def suit_sorter():
 
 class Dealer:
     def __init__(self):
+        self.camera = Camera()
         self.pack = None
         self.dealt = []
 
@@ -34,9 +35,10 @@ class Dealer:
         tries = 0
         while not cam.read_card():
             time.sleep(0.5)
-            cam.capture()
+            self.camera.capture()
             tries += 1
-            if tries == 20:
+            print("No card")
+            if tries == 100:
                 return False
         return True
 
@@ -44,9 +46,9 @@ class Dealer:
         if self.is_ready():
             motor_on()
             for r in range(52 - len(self.dealt)):
-                cam.read_card()
+                self.camera.read_card()
                 rank_template, suit_template = matcher.match(
-                    cam.rank_image, cam.suit_image
+                    self.camera.rank_image, self.camera.suit_image
                 )
                 rank = rank_template.name if rank_template else "?"
                 suit = suit_template.name if suit_template else "X"
@@ -58,7 +60,7 @@ class Dealer:
                     return
                 if card in pack:
                     slot = pack[card][0]
-                    feed_card(slot, cam)
+                    feed_card(slot, self.camera)
                     self.dealt.append(card)
                 else:
                     print(f"Bad card: {card}")
