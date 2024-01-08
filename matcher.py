@@ -4,7 +4,7 @@ import numpy as np
 import time
 from dataclasses import dataclass
 
-RANK_DIFF_MAX = 6000
+RANK_DIFF_MAX = 7000
 SUIT_DIFF_MAX = 4000
 IMG_PATH = os.path.dirname(os.path.abspath(__file__)) + "/images/"
 

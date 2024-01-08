@@ -23,17 +23,17 @@ def suit_sorter():
 class Dealer:
     def __init__(self):
         self.camera = Camera()
+        self.matcher = Matcher()
         self.pack = None
         self.dealt = []
 
     def is_ready(self):
-        global cam, matcher
         reset()
         lamp_on()
-        cam.capture()
-        cam.process()
+        self.camera.capture()
+        self.camera.process()
         tries = 0
-        while not cam.read_card():
+        while not self.camera.read_card():
             time.sleep(0.5)
             self.camera.capture()
             tries += 1
@@ -42,12 +42,17 @@ class Dealer:
                 return False
         return True
 
-    def deal(self, pack):
+    def deal(self, pack=None):
+        if pack:
+            self.pack = pack
+        if self.pack is None:
+            raise ValueError("No pack to deal")
+        print(f"{52 - len(self.dealt)} cards remaining")
         if self.is_ready():
             motor_on()
             for r in range(52 - len(self.dealt)):
                 self.camera.read_card()
-                rank_template, suit_template = matcher.match(
+                rank_template, suit_template = self.matcher.match(
                     self.camera.rank_image, self.camera.suit_image
                 )
                 rank = rank_template.name if rank_template else "?"
@@ -56,7 +61,7 @@ class Dealer:
                 if card in self.dealt:
                     self.debug()
                     print(f"Card {card} has already been dealt")
-                    motor_off()
+                    reset()
                     return
                 if card in pack:
                     slot = pack[card][0]
@@ -64,20 +69,20 @@ class Dealer:
                     self.dealt.append(card)
                 else:
                     print(f"Bad card: {card}")
-                    matcher.debug()
+                    self.matcher.debug()
                     self.debug()
-                    motor_off()
+                    reset()
                     return
             reset()
 
     def debug(self):
-        cv2.imshow("Rank", cam.rank_image)
-        cv2.imshow("Suit", cam.suit_image)
+        cv2.imshow("Rank", self.camera.rank_image)
+        cv2.imshow("Suit", self.camera.suit_image)
         cv2.waitKey(5)
 
 
 def camera_test():
-    global cam
+    cam = Camera()
     reset()
     lamp_on()
     motor_on()
@@ -94,9 +99,7 @@ def camera_test():
             feed_card("N", cam)
     reset()
 
-
-cam = Camera()
-matcher = Matcher()
-pack = suit_sorter()
-dealer = Dealer()
-dealer.deal(pack)
+# 
+# pack = suit_sorter()
+# dealer = Dealer()
+# dealer.deal(pack)
