@@ -22,7 +22,7 @@ def suit_sorter():
     slots = {"C": "S", "D": "W", "H": "E", "S": "N"}
     for s in SUITS:
         for r in RANKS:
-            pack[r + s] = slots[s]
+            pack[r + s] = (slots[s], False)
     return pack
 
 
@@ -40,8 +40,9 @@ def deal(pack):
         suit = suit_template.name if suit_template else "X"
         card = f"{rank}{suit}"
         if card in pack:
-            slot = pack[card]
+            slot = pack[card][0]
             feed_card(slot, cam)
+            pack[card][1] = True
         else:
             print(f"Bad card: {card}")
             matcher.debug()
@@ -50,27 +51,6 @@ def deal(pack):
             cv2.waitKey(1)
             return
     reset()
-
-
-# reset()
-# cam = Camera()
-# m = Matcher()
-# lamp_on()
-# time.sleep(1)
-# while True:
-#     try:
-#         cam.read_card()
-#         r,s,a,b = m.match(cam.rank_image, cam.suit_image)
-#         print(r,s,a,b)
-#         cv2.imshow("R", cam.rank_image)
-#         cv2.imshow("S", cam.suit_image)
-#         if cv2.waitKey(1) == ord("q"):
-#             break
-#         print("Next card")
-#         input()
-#     except ValueError as e:
-#         print("No card", e)
-#         input()
 
 
 def camera_test():

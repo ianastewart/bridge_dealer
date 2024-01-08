@@ -1,9 +1,10 @@
+import cv2
 PI = True
 try:
     from picamera2 import Picamera2
 except ImportError:
     PI = False
-import cv2
+
 
 # Crop positions
 X1 = 180
