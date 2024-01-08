@@ -43,14 +43,16 @@ class Dealer:
         return True
 
     def deal(self, pack=None):
+        lamp_on()
         if pack:
             self.pack = pack
         if self.pack is None:
             raise ValueError("No pack to deal")
-        print(f"{52 - len(self.dealt)} cards remaining")
+        
         if self.is_ready():
             motor_on()
             for r in range(52 - len(self.dealt)):
+                print(f"{52 - len(self.dealt)} cards remaining")
                 self.camera.read_card()
                 rank_template, suit_template = self.matcher.match(
                     self.camera.rank_image, self.camera.suit_image
@@ -63,8 +65,8 @@ class Dealer:
                     print(f"Card {card} has already been dealt")
                     reset()
                     return
-                if card in pack:
-                    slot = pack[card][0]
+                if card in self.pack:
+                    slot = self.pack[card][0]
                     feed_card(slot, self.camera)
                     self.dealt.append(card)
                 else:
