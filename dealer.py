@@ -4,7 +4,7 @@ import cv2
 
 from camera import Camera
 from matcher import Matcher
-from mechanics import reset, motor_on, feed_card, lamp_on
+from mechanics import reset, motor_on, motor_off, feed_card, lamp_on
 
 RANKS = "23456789TJQKA"
 SUITS = "CDHS"
@@ -17,6 +17,7 @@ def suit_sorter():
         for r in RANKS:
             sorted_pack[r + s] = (slots[s], False)
     return sorted_pack
+
 
 
 class Dealer:
@@ -42,7 +43,7 @@ class Dealer:
     def deal(self, pack):
         if self.is_ready():
             motor_on()
-            for r in range(52):
+            for r in range(52 - len(self.dealt)):
                 cam.read_card()
                 rank_template, suit_template = matcher.match(
                     cam.rank_image, cam.suit_image
@@ -52,7 +53,9 @@ class Dealer:
                 card = f"{rank}{suit}"
                 if card in self.dealt:
                     self.debug()
-                    raise ValueError(f"Card {card} has already been dealt")
+                    print(f"Card {card} has already been dealt")
+                    motor_off()
+                    return
                 if card in pack:
                     slot = pack[card][0]
                     feed_card(slot, cam)
@@ -61,6 +64,7 @@ class Dealer:
                     print(f"Bad card: {card}")
                     matcher.debug()
                     self.debug()
+                    motor_off()
                     return
             reset()
 
