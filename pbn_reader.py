@@ -1,7 +1,7 @@
 
 import logging
 from pathlib import Path
-from typing import List, Dict, Tuple
+from typing import List
 from bridgebots import Deal
 from bridgebots.pbn import _build_record_dict, _split_pbn, from_pbn_deal
 from bridgebots.deal_enums import Direction
@@ -42,7 +42,7 @@ def parse_pbn(file_path: Path) -> List[Deal]:
     return result
 
 
-def create_packs(file_path: Path) -> List[Dict[str: Tuple[str, bool]]]:
+def create_packs(file_path: Path): # -> List[Dict[str: Tuple[str, bool]]]:
 
     deals = parse_pbn(file_path)
     result = []
