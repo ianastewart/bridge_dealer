@@ -85,6 +85,7 @@ class Dealer:
 
 def camera_test():
     cam = Camera()
+    cam.debug = 2
     reset()
     lamp_on()
     motor_on()
@@ -92,10 +93,11 @@ def camera_test():
     cam.capture()
     while True:
         cam.read_card()
-        cv2.imshow("R", cam.rank_image)
-        cv2.imshow("S", cam.suit_image)
+        cv2.imshow("Input", cam.image)
+        cv2.imshow("Rank", cam.rank_image)
+        cv2.imshow("Suit", cam.suit_image)
         k = cv2.waitKey(1)
-        if k == ord("q"):
+        if k == ord("q"):       
             break
         if k == ord("f"):
             feed_card("N", cam)

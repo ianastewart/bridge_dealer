@@ -12,7 +12,7 @@ X2 = 390
 RANK_Y1 = 0
 RANK_Y2 = 230
 SUIT_Y1 = 225
-SUIT_Y2 = 390
+SUIT_Y2 = 400
 RANK_THRESHOLD = 180
 SUIT_THRESHOLD = 165
 
@@ -42,6 +42,9 @@ class Camera:
     def capture(self):
         if PI:
             self.image = self.picam2.capture_array()
+            if self.debug == 1:
+                cv2.imshow("Image", self.image)
+                cv2.waitkey(1)
         else:
             self.image = None
         self.suit_image = None
@@ -97,3 +100,15 @@ class Camera:
     def stop(self):
         if self.picam2:
             self.picam2.stop()
+
+def view():
+    from mechanics import reset, lamp_on
+    lamp_on()
+    cam = Camera()
+    while True:
+        cam.capture()
+        cv2.imshow("Camera", cam.image)
+        k = cv2.waitKey(1)
+        if k == ord("q"):
+            break
+    

@@ -13,9 +13,15 @@ EAST_PIN = 33  # Relay 2
 WEST_PIN = 31  # Relay 3
 SOUTH_PIN = 29  # Relay 4
 FEED_PIN = 22  # External relay
+GATE_1 = 29
+GATE_2 = 31
+GATE_3 = 33
+INPUT_1 = 40
+INPUT_2 = 38
 
-FEED_PULSE = 0.05
-DELAY_BASE = 0.4
+
+FEED_PULSE = 0.1
+DELAY_BASE = 0.25
 DELAY_INCREMENT = 0.3
 
 RANK = "A23456789TJQK"
@@ -26,9 +32,11 @@ def configure_gpio():
     GPIO.setmode(GPIO.BOARD)
     GPIO.setwarnings(False)
     GPIO.setup(MOTOR_PIN, GPIO.OUT)
-    GPIO.setup(EAST_PIN, GPIO.OUT)
-    GPIO.setup(WEST_PIN, GPIO.OUT)
-    GPIO.setup(SOUTH_PIN, GPIO.OUT)
+    GPIO.setup(GATE_1, GPIO.OUT)
+    GPIO.setup(GATE_2, GPIO.OUT)
+    GPIO.setup(GATE_3, GPIO.OUT)
+    GPIO.setup(INPUT_1, GPIO.OUT)
+    GPIO.setup(INPUT_2, GPIO.OUT)
     GPIO.setup(FEED_PIN, GPIO.OUT)
     GPIO.setup(LAMP_PIN, GPIO.OUT)
     GPIO.setup(CARD_FED_PIN, GPIO.IN)
@@ -36,38 +44,76 @@ def configure_gpio():
 
 def reset():
     configure_gpio()
-    GPIO.output(SOUTH_PIN, GPIO.LOW)
-    GPIO.output(WEST_PIN, GPIO.LOW)
-    GPIO.output(EAST_PIN, GPIO.LOW)
+    GPIO.output(GATE_1, GPIO.LOW)
+    GPIO.output(GATE_2, GPIO.LOW)
+    GPIO.output(GATE_3, GPIO.LOW)
+    GPIO.output(INPUT_1, GPIO.LOW)
+    GPIO.output(INPUT_2, GPIO.LOW)
     GPIO.output(MOTOR_PIN, GPIO.LOW)
     GPIO.output(FEED_PIN, GPIO.LOW)
     GPIO.output(LAMP_PIN, GPIO.LOW)
 
+class Gate():
+    def __init__(self, gate_number):
+        match gate_number:
+            case 1:
+                self.pin = GATE_1
+            case 2:
+                self.pin = GATE_2
+            case 3:
+                self.pin = GATE_3
+        
+    def close(self):
+        GPIO.output(self.pin, GPIO.HIGH)
+        
+    def open(self):
+        GPIO.output(self.pin, GPIO.LOW)
+        
+    def is_closed(self):
+        return GPIO.input(self.pin) == 1
+
+reset()
+south_gate = Gate(1)
+west_gate = Gate(2)
+east_gate = Gate(3)
+
 
 def set_south():
-    GPIO.output(SOUTH_PIN, GPIO.HIGH)
-    GPIO.output(WEST_PIN, GPIO.LOW)
-    GPIO.output(EAST_PIN, GPIO.LOW)
-
+    south_gate.close()
+    west_gate.open()
+    east_gate.open()
+ 
 
 def set_west():
-    GPIO.output(SOUTH_PIN, GPIO.LOW)
-    GPIO.output(WEST_PIN, GPIO.HIGH)
-    GPIO.output(EAST_PIN, GPIO.LOW)
+    west_gate.close()
+    south_gate.open()
+    east_gate.open()
 
 
 def set_east():
-    GPIO.output(SOUTH_PIN, GPIO.LOW)
-    GPIO.output(WEST_PIN, GPIO.LOW)
-    GPIO.output(EAST_PIN, GPIO.HIGH)
+    east_gate.close()
+    south_gate.open()
+    west_gate.open()
 
 
 def set_north():
-    GPIO.output(SOUTH_PIN, GPIO.LOW)
-    GPIO.output(WEST_PIN, GPIO.LOW)
-    GPIO.output(EAST_PIN, GPIO.LOW)
+    east_gate.open()
+    south_gate.open()
+    west_gate.open()
 
 
+def feed_forward():
+    GPIO.output(INPUT_2, GPIO.HIGH)
+    GPIO.output(INPUT_1, GPIO.LOW)
+
+def feed_backwards():
+    GPIO.output(INPUT_1, GPIO.HIGH)
+    GPIO.output(INPUT_2, GPIO.LOW)
+
+def feed_stop():
+    GPIO.output(INPUT_1, GPIO.LOW)
+    GPIO.output(INPUT_2, GPIO.LOW)
+    
 def motor_on():
     GPIO.output(MOTOR_PIN, GPIO.HIGH)
 
@@ -84,29 +130,46 @@ def lamp_off():
     GPIO.output(LAMP_PIN, GPIO.LOW)
 
 
+def feed_on():
+    GPIO.output(FEED_PIN, GPIO.HIGH)
+
+
+def feed_off():
+    GPIO.output(FEED_PIN, GPIO.LOW)
+    
+    
 def is_fed():
     return GPIO.input(CARD_FED_PIN) == 0
 
 
 def feed(delay=1, cam=None):
-    GPIO.output(FEED_PIN, GPIO.HIGH)
-    t = 0
+    feed_forward()  
+    t1 = 0
     while not is_fed():
-        time.sleep(0.01)
-        t += 1
-        if t == 50:
-            GPIO.output(FEED_PIN, GPIO.LOW)
+        time.sleep(0.01) 
+        t1 += 1
+        if t1 == 100:
+            feed_stop()
             return False
+    start = time.time()
     if cam:
         time.sleep(0.05)
         cam.capture()
     time.sleep(FEED_PULSE)
-    GPIO.output(FEED_PIN, GPIO.LOW)
+    feed_stop()
+    t2 = 0
+    while is_fed():
+        time.sleep(0.01)
+        t2 += 1
+        if t2 == 50:
+            return False
+    print(time.time() - start)
     time.sleep(delay)
+    print(t1, t2)
     return True
 
 
-def feed_card(slot="N", cam=None):
+def feed_card(slot="N", cam=None, cam_debug=False):
     if slot == "S":
         set_south()
         delay = DELAY_BASE
@@ -149,3 +212,13 @@ def gate_test():
         time.sleep(t)
         set_east()
         time.sleep(t)
+
+def time_path():
+    reset()
+    motor_on()
+    start_time = time.time()
+    for i in range(13):
+        feed_card("S")
+    print (time.time()-start_time)
+    reset()
+    

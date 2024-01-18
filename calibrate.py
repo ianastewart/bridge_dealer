@@ -1,8 +1,10 @@
 import cv2
 import os
 import glob
+import time
 from camera import Camera
-from mechanics import reset, motor_on, feed_card, lamp_on
+from mechanics import reset, motor_on, lamp_on, feed_on, feed_off, is_fed
+
 
 
 def calibrate():
@@ -39,4 +41,35 @@ def calibrate():
 
 
 cam = Camera()
-calibrate()
+images = []
+#calibrate()
+def capture_stream():
+    reset()
+    motor_on()
+    lamp_on()
+    time.sleep(1)
+    while True:
+        feed_on()
+        t1 = 0
+        while not is_fed():
+            cam.capture()
+            images.append(cam.image) 
+            t1 += 1
+            time.sleep(0.005)
+            if t1 == 100:
+                return
+        cam.capture()
+        images.append(cam.image)
+        feed_off()
+        print(len(images))
+        k = input()
+        if k == "q":
+            return
+        show()
+
+
+def show():
+    for i in range(len(images)):
+        cv2.imshow(str(i), images[i])
+        cv2.waitKey(1)
+    
