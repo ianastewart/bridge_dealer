@@ -7,8 +7,10 @@ except ImportError:
 
 
 # Crop positions
-X1 = 180
-X2 = 390
+X1 = 235
+X2 = 400
+Y1 = 20
+Y2 = 420
 RANK_Y1 = 0
 RANK_Y2 = 230
 SUIT_Y1 = 225
@@ -101,14 +103,63 @@ class Camera:
         if self.picam2:
             self.picam2.stop()
 
-def view():
-    from mechanics import reset, lamp_on
-    lamp_on()
-    cam = Camera()
-    while True:
-        cam.capture()
-        cv2.imshow("Camera", cam.image)
-        k = cv2.waitKey(1)
-        if k == ord("q"):
-            break
+def crop_bounds(image, b):
+    return image[b[1]:b[1]+b[3], b[0]:b[0]+b[2]]
+
+from mechanics import reset, lamp_on
+lamp_on()
+cam = Camera()
+while True:
+    cam.capture()
+    #cv2.imshow("Camera", cam.image)   
+    source = cam.image[Y1:Y2, X1:X2].copy()
+    cv2.imshow("source", source)
+    gray = cv2.cvtColor(source, cv2.COLOR_BGR2GRAY)
+    k = cv2.waitKey(1)
+    threshold = 160
+    _, binary = cv2.threshold(gray, threshold, 255, cv2.THRESH_BINARY_INV)
+    cv2.imshow("Binary", binary)
+#   k = cv2.waitKey()
+#     if k == ord("u"):
+#         threshold += 5
+#     elif k == ord("d"):
+#         threshold -= 5
+#     elif k == ord("q"):
+#         break
+#     print(threshold)
+    contours, hierarchy = cv2.findContours(binary, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE) 
+    print("Contours", len(contours))
+    bounds = [cv2.boundingRect(contour) for contour in contours]
+    bounds = sorted(bounds, key = lambda x: x[2] * x[3], reverse=True)
+    colours = [(255,0,0), (0,255, 0), (0,0,255)]
+    for i, b in enumerate(bounds):
+        colour = colours[i] if i <= 2 else (255,255,0) 
+        source = cv2.rectangle(source, (b[0], b[1]), (b[0]+b[2], b[1]+b[3]), colour, 2)        
+    cv2.imshow("Contours", source)
+    #cv2.waitKey()
+    rank = None
+    suit = None
+    if len(bounds) >= 2:
+        rank = crop_bounds(binary, bounds[0])
+        suit = crop_bounds(binary, bounds[1])
+    else:
+        #return False
+        raise ValueError("Contours")
+    if len(bounds) > 2:
+        for i , b in enumerate(bounds):
+            if i > 1:
+                # Hamdle rank = 10
+                # look for a boundary with similar Y and similar h to largest boundary
+                # and extend largest boundary to include it
+                if abs(b[1] - bounds[0][1]) < 10 and abs(b[3] - bounds[0][3]) < 10:
+                    rank = binary[bounds[0][1]:bounds[0][1] + bounds[0][3], b[0]: bounds[0][0] + bounds[0][2]]
+                    break                                       
+#     rank = cv2.resize(rank, (WIDTH, RANK_HEIGHT))
+#     suit = cv2.resize(suit, (WIDTH, SUIT_HEIGHT))
+    cv2.imshow("Rank", rank)
+    cv2.imshow("Suit", suit)
+    k = cv2.waitKey()
+    if k == ord("q"):
+        break
+
     
