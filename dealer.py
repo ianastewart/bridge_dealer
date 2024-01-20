@@ -78,8 +78,8 @@ class Dealer:
             reset()
 
     def debug(self):
-        cv2.imshow("Rank", self.camera.rank_image)
-        cv2.imshow("Suit", self.camera.suit_image)
+        cv2.imshow("Rank", self.rank_image)
+        cv2.imshow("Suit", self.suit_image)
         cv2.waitKey(5)
 
 
