@@ -20,9 +20,10 @@ INPUT_1 = 40
 INPUT_2 = 38
 
 
-FEED_PULSE = 0.1
-DELAY_BASE = 0.25
-DELAY_INCREMENT = 0.3
+FEED_PULSE = 0.05
+DELAY_BASE = 0.2
+
+DELAY_INCREMENT = 0.15
 
 RANK = "A23456789TJQK"
 SUIT = "CDHS"
@@ -128,22 +129,21 @@ def lamp_on():
 
 def lamp_off():
     GPIO.output(LAMP_PIN, GPIO.LOW)
-
-
-def feed_on():
-    GPIO.output(FEED_PIN, GPIO.HIGH)
-
-
-def feed_off():
-    GPIO.output(FEED_PIN, GPIO.LOW)
-    
+   
     
 def is_fed():
     return GPIO.input(CARD_FED_PIN) == 0
 
 
-def feed(delay=1, cam=None):
-    feed_forward()  
+def feed_reset(duration=0.05):
+    feed_backwards()
+    time.sleep(duration)
+    feed_stop()
+
+
+
+def feed(delay=1, camera=None):
+    feed_forward()
     t1 = 0
     while not is_fed():
         time.sleep(0.01) 
@@ -152,9 +152,9 @@ def feed(delay=1, cam=None):
             feed_stop()
             return False
     start = time.time()
-    if cam:
+    if camera:
         time.sleep(0.05)
-        cam.capture()
+        camera.capture()
     time.sleep(FEED_PULSE)
     feed_stop()
     t2 = 0
@@ -163,13 +163,13 @@ def feed(delay=1, cam=None):
         t2 += 1
         if t2 == 50:
             return False
-    print(time.time() - start)
+    #print(time.time() - start)
     time.sleep(delay)
-    print(t1, t2)
+    #print(t1, t2)
     return True
 
 
-def feed_card(slot="N", cam=None, cam_debug=False):
+def feed_card(slot="N", camera=None):
     if slot == "S":
         set_south()
         delay = DELAY_BASE
@@ -182,10 +182,11 @@ def feed_card(slot="N", cam=None, cam_debug=False):
     elif slot == "N":
         set_north()
         delay = DELAY_BASE + 3 * DELAY_INCREMENT
-    if feed(delay, cam=cam):
+    if feed(delay, camera=camera):
         return True
     print("Feed_error - retrying")
-    if feed(delay, cam=None):
+    feed_reset(duration=0.2)
+    if feed(delay, camera=None):
         return True
     print("Feed error - Stopped for key")
     input()
@@ -204,7 +205,7 @@ def feed_pack(count=13):
 
 def gate_test():
     reset()
-    t = 0.2
+    t = 0.1
     while True:
         set_south()
         time.sleep(t)

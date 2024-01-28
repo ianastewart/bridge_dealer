@@ -1,4 +1,4 @@
-import cv2
+import cv2, time
 PI = True
 try:
     from picamera2 import Picamera2
@@ -7,19 +7,18 @@ except ImportError:
 
 
 # Crop positions
-X1 = 235
+X1 = 230
 X2 = 400
 Y1 = 20
-Y2 = 420
+Y2 = 400
 THRESHOLD = 160
 
 PIN_LAMP = 16
 
 # Dimensions of binary masks
-WIDTH = 120
-SUIT_HEIGHT = 150
-RANK_HEIGHT = 200
-
+WIDTH = 110
+SUIT_HEIGHT = 130
+RANK_HEIGHT = 190
 
 class Camera:
     picam2 = None
@@ -40,19 +39,28 @@ class Camera:
     def capture(self):
         if PI:
             self.image = self.picam2.capture_array()
-            if self.debug == 1:
-                cv2.imshow("Image", self.image)
-                cv2.waitkey(1)
         else:
             self.image = None
         self.suit_image = None
         self.rank_image = None
-        return self.image
 
+    def is_ready(self):
+        self.capture()
+        tries = 0
+        while not self.read_card():
+            time.sleep(0.1)
+            self.capture()
+            tries += 1
+            if tries == 100:
+               return False
+            print("Tries", tries)
+        return True
+            
+    
     def read_card(self):
         self.suit_image = None
         self.rank_image = None
-        if not self.image:
+        if self.image is None:
             self.error = "No image"
             return False
         source = self.image[Y1:Y2, X1:X2].copy()
@@ -71,12 +79,12 @@ class Camera:
         self.rank_image = None
         self.suit_image = None
         if len(bounds) >= 2:
-            rank = crop_bounds(binary, bounds[0])
-            suit = crop_bounds(binary, bounds[1])
+            rank = self.crop_bounds(binary, bounds[0])
+            suit = self.crop_bounds(binary, bounds[1])
         else:
             self.error = "Contours < 2"
             return False
-        if len(bounds) < 5: # tolerate small unexpected contours
+        if len(bounds) < 10: # tolerate small unexpected contours
             for i, b in enumerate(bounds):
                 if i > 1:
                     # Handle rank = 10 which has two contours
@@ -93,7 +101,7 @@ class Camera:
         if self.debug:
             cv2.imshow("Rank", self.rank_image)
             cv2.imshow("Suit", self.suit_image)
-            cv2.waitKey()
+            #cv2.waitKey()
         return True
 
     @staticmethod
@@ -105,6 +113,6 @@ class Camera:
         if self.picam2:
             self.picam2.stop()
 
-
+camera = Camera()
 
     
