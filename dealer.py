@@ -3,7 +3,6 @@ import time
 import cv2
 
 from camera import camera
-from matcher import Matcher
 from mechanics import reset, motor_on, motor_off, feed_card, feed_reset, lamp_on
 
 RANKS = "23456789TJQKA"
@@ -19,13 +18,13 @@ def suit_sorter():
     return sorted_pack
 
 
-
 class Dealer:
     def __init__(self):
-        self.matcher = Matcher()
         self.pack = None
+        self.card = ""
         self.dealt = []
-        camera.debug=True
+        self.camera = camera
+        camera.debug = True
 
     def is_ready(self):
         reset()
@@ -51,34 +50,37 @@ class Dealer:
             motor_on()
             for r in range(52 - len(self.dealt)):
                 print(f"{52 - len(self.dealt)} cards remaining")
-                feed_reset(duration=.05)
-                camera.capture()
-                retries = 0
-                while not self.next_card():
-                    print("Rewind")
-                    feed_reset(duration=.1)
-                    camera.capture()
-                    retries += 1
-                    if retries > 5:
-                        raise ValueError("Card retries exceeded")
-                if self.card in self.dealt:
-                    self.debug()
-                    print(f"Card {self.card} has already been dealt")
-                    reset()
-                    return
-                if self.card in self.pack:
-                    slot = self.pack[self.card][0]
-                    print("Card", self.card, slot)
-                    feed_card(slot, camera=None)
-                    self.dealt.append(self.card)
-                else:
-                    print(f"Bad card: {self.card}")
-                    self.matcher.debug()
-                    self.debug()
-                    reset()
-                    return
+
             reset()
-            
+
+    def deal_card(self):
+        """ Deal next card from the pack """
+        feed_reset(duration=0.05)
+        camera.capture()
+        retries = 0
+        while not self.next_card():
+            print("Rewind")
+            feed_reset(duration=0.1)
+            camera.capture()
+            retries += 1
+            if retries > 5:
+                raise ValueError("Card retries exceeded")
+        if self.card in self.dealt:
+            self.debug()
+            print(f"Card {self.card} has already been dealt")
+            reset()
+            return
+        if self.card in self.pack:
+            slot = self.pack[self.card][0]
+            print("Card", self.card, slot)
+            feed_card(slot, camera=None)
+            self.dealt.append(self.card)
+        else:
+            print(f"Bad card: {self.card}")
+            self.debug()
+            reset()
+            return
+
     def next_card(self):
         """
         Read captured image and decode into self.card"
@@ -86,9 +88,7 @@ class Dealer:
         """
         self.card = "--"
         camera.read_card()
-        rank_template, suit_template = self.matcher.match(
-            camera.rank_image, camera.suit_image
-        )
+        rank_template, suit_template = camera.match()
         rank = rank_template.name if rank_template else "?"
         suit = suit_template.name if suit_template else "X"
         self.card = f"{rank}{suit}"
@@ -121,7 +121,7 @@ def camera_test():
         camera.capture()
 
 
-# 
+#
 # pack = suit_sorter()
 # dealer = Dealer()
 # dealer.deal(pack)

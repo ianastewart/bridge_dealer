@@ -11,4 +11,3 @@ while not dealer.is_ready():
     print("Waiting")
 if dealer.is_ready():
     dealer.deal(packs[0])
-

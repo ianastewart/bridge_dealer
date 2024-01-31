@@ -1,4 +1,3 @@
-
 import logging
 from pathlib import Path
 from typing import List, Dict
@@ -13,13 +12,16 @@ def parse_single_deal(record_strings: List[str]) -> Deal:
     """
     record_dict = _build_record_dict(record_strings)
     try:
-        deal = from_pbn_deal(record_dict["Dealer"], record_dict["Vulnerable"], record_dict["Deal"])
+        deal = from_pbn_deal(
+            record_dict["Dealer"], record_dict["Vulnerable"], record_dict["Deal"]
+        )
     except KeyError as e:
         raise ValueError("Missing deal fields and no previous_deal provided") from e
     # Add extra fields to the record
     deal.board = int(record_dict.get("Board", 0))
     deal.date = record_dict.get("Date", 0)
     return deal
+
 
 def parse_pbn(file_path: Path) -> List[Deal]:
     """
@@ -43,14 +45,20 @@ def parse_pbn(file_path: Path) -> List[Deal]:
 
 
 def create_packs(file_path: Path) -> List[Dict[str, str]]:
-
     deals = parse_pbn(file_path)
     result = []
     for deal in deals:
         pack = {}
-        for direction in [Direction.NORTH, Direction.SOUTH, Direction.EAST, Direction.WEST]:
-            for card in [f"{card.rank.value[1]}{card.suit.name[0]}" for card in deal.hands[direction].cards]:
+        for direction in [
+            Direction.NORTH,
+            Direction.SOUTH,
+            Direction.EAST,
+            Direction.WEST,
+        ]:
+            for card in [
+                f"{card.rank.value[1]}{card.suit.name[0]}"
+                for card in deal.hands[direction].cards
+            ]:
                 pack[card] = direction.name[0]
             result.append(pack)
     return result
-

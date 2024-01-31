@@ -19,7 +19,7 @@ def calibrate(name="images"):
 
     reset()
     lamp_on()
-    camera.debug=False
+    camera.debug = False
     time.sleep(2)
     motor_on()
     feed_reset()
@@ -58,19 +58,22 @@ def camera_test():
         while True:
             camera.capture()
             camera.read_card()
-            
+
+
 #     #         cv2.imshow("Input", cam.image)
 #             cv2.imshow("Rank", cam.rank_image)
 #             cv2.imshow("Suit", cam.suit_image)
 #             k = cv2.waitKey(1)
-# #         if k == ord("q"):       
+# #         if k == ord("q"):
 #             break
 #         if k == ord("f"):
 #             feed_card("N", cam)
 #     reset()
 
 images = []
-#calibrate()
+
+
+# calibrate()
 def capture_stream():
     reset()
     motor_on()
@@ -81,7 +84,7 @@ def capture_stream():
         t1 = 0
         while not is_fed():
             camera.capture()
-            images.append(cam.image) 
+            images.append(cam.image)
             t1 += 1
             time.sleep(0.005)
             if t1 == 100:
@@ -100,4 +103,3 @@ def show():
     for i in range(len(images)):
         cv2.imshow(str(i), images[i])
         cv2.waitKey(1)
-    
