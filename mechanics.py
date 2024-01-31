@@ -19,15 +19,26 @@ GATE_3 = 33
 INPUT_1 = 40
 INPUT_2 = 38
 
-
+# Time in seconds after card detected as fed
 FEED_PULSE = 0.05
-DELAY_BASE = 0.2
-
-DELAY_INCREMENT = 0.15
+WAIT_BASE = 0.1
+WAIT_INCREMENT = 0.15
 
 RANK = "A23456789TJQK"
 SUIT = "CDHS"
 
+# Global vars
+ready_time = 0
+last_slot = ""
+
+def wait_until_ready():
+    global ready_time
+    if ready_time > 0:
+        t = 0
+        while time.time() < ready_time:
+            time.sleep(0.01)
+            t += 1
+        print(f"Waited {t*10} ms") 
 
 def configure_gpio():
     GPIO.setmode(GPIO.BOARD)
@@ -44,6 +55,7 @@ def configure_gpio():
 
 
 def reset():
+    wait_until_ready()
     configure_gpio()
     GPIO.output(GATE_1, GPIO.LOW)
     GPIO.output(GATE_2, GPIO.LOW)
@@ -53,6 +65,7 @@ def reset():
     GPIO.output(MOTOR_PIN, GPIO.LOW)
     GPIO.output(FEED_PIN, GPIO.LOW)
     GPIO.output(LAMP_PIN, GPIO.LOW)
+
 
 class Gate():
     def __init__(self, gate_number):
@@ -77,6 +90,7 @@ reset()
 south_gate = Gate(1)
 west_gate = Gate(2)
 east_gate = Gate(3)
+
 
 
 def set_south():
@@ -141,8 +155,8 @@ def feed_reset(duration=0.05):
     feed_stop()
 
 
-
-def feed(delay=1, camera=None):
+def feed(wait=1, camera=None):
+    global ready_time
     feed_forward()
     t1 = 0
     while not is_fed():
@@ -164,42 +178,67 @@ def feed(delay=1, camera=None):
         if t2 == 50:
             return False
     #print(time.time() - start)
-    time.sleep(delay)
+    #time.sleep(delay)
     #print(t1, t2)
+    new_time = time.time() + wait
+    if new_time > ready_time:
+        ready_time = new_time
     return True
 
 
 def feed_card(slot="N", camera=None):
+    global ready_time, last_slot
+    if slot == last_slot:
+        print("Feed immediately")
+    elif last_slot == "N" and slot in ["S", "W"]:
+        print("case 2")
+    elif ready_time > 0:
+        t = 0
+        while time.time() < ready_time:
+            time.sleep(0.01)
+            t += 1
+        print(f"Waited {t*10} ms")    
+        
     if slot == "S":
         set_south()
-        delay = DELAY_BASE
+        delay = WAIT_BASE
     elif slot == "W":
         set_west()
-        delay = DELAY_BASE + DELAY_INCREMENT
+        delay = WAIT_BASE + WAIT_INCREMENT
     elif slot == "E":
         set_east()
-        delay = DELAY_BASE + 2 * DELAY_INCREMENT
+        delay = WAIT_BASE + 2 * WAIT_INCREMENT
     elif slot == "N":
         set_north()
-        delay = DELAY_BASE + 3 * DELAY_INCREMENT
+        delay = WAIT_BASE + 3 * WAIT_INCREMENT
+    last_slot = slot
     if feed(delay, camera=camera):
         return True
     print("Feed_error - retrying")
     feed_reset(duration=0.2)
-    if feed(delay, camera=None):
+    if feed(delay, camera=camera):
         return True
     print("Feed error - Stopped for key")
     input()
 
+def wait_time(slot):
+    if slot == "S":
+        return WAIT_BASE
+    elif slot == "W":
+        return WAIT_BASE + WAIT_INCREMENT
+    elif slot == "E":
+        return WAIT_BASE + 2 * WAIT_INCREMENT
+    elif slot == "N":
+        return WAIT_BASE + 3 * WAIT_INCREMENT
 
 def feed_pack(count=13):
     reset()
     motor_on()
     for i in range(count):
         feed_card("N")
-        feed_card("E")
-        feed_card("W")
         feed_card("S")
+        feed_card("N")
+        feed_card("W")
     reset()
 
 

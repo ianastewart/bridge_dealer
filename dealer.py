@@ -61,21 +61,6 @@ class Dealer:
                     retries += 1
                     if retries > 5:
                         raise ValueError("Card retries exceeded")
-#                 while not camera.read_card():
-#                     feed_reset(duration=.1)
-#                     camera.capture()
-#                     resets += 1
-#                     print(f"{reset} resets")
-#                     if resets > 10:
-#                         reset()
-#                         raise ValueError("Card cannot be read")
-# 
-#                 rank_template, suit_template = self.matcher.match(
-#                     camera.rank_image, camera.suit_image
-#                 )
-#                 rank = rank_template.name if rank_template else "?"
-#                 suit = suit_template.name if suit_template else "X"
-#                 card = f"{rank}{suit}"
                 if self.card in self.dealt:
                     self.debug()
                     print(f"Card {self.card} has already been dealt")

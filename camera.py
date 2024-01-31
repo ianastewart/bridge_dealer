@@ -71,6 +71,8 @@ class Camera:
         # Sort by largest area
         bounds = sorted(bounds, key=lambda x: x[2] * x[3], reverse=True)
         if self.debug:
+
+            print("Bounds 0", bounds[0], "Bounds 1", bounds[1])
             colours = [(255, 0, 0), (0, 255, 0), (0, 0, 255)]
             for i, b in enumerate(bounds):
                 colour = colours[i] if i <= 2 else (255, 255, 0)
