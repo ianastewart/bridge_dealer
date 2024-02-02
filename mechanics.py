@@ -5,27 +5,22 @@ try:
 except ImportError:
     import Mock.GPIO as GPIO
 
-
-LAMP_PIN = 16
-CARD_FED_PIN = 18
-MOTOR_PIN = 35  # Relay 1
-EAST_PIN = 33  # Relay 2
-WEST_PIN = 31  # Relay 3
-SOUTH_PIN = 29  # Relay 4
-FEED_PIN = 22  # External relay
-GATE_1 = 29
-GATE_2 = 31
-GATE_3 = 33
-INPUT_1 = 40
-INPUT_2 = 38
+# Output pins
+LAMP = 16
+MOTOR = 35  # Relay 1
+GATE_1 = 29 # Relay 4
+GATE_2 = 31 # Relay 3
+GATE_3 = 33 # Relay 2
+DRIVER_1 = 40 # Feed motor driver
+DRIVER_2 = 38 # Feed motor driver
+# Input pins
+CARD_FED = 18
+BOARD_SWITCH = 36
 
 # Time in seconds after card detected as fed
 FEED_PULSE = 0.05
 WAIT_BASE = 0.1
-WAIT_INCREMENT = 0.15
-
-RANK = "A23456789TJQK"
-SUIT = "CDHS"
+WAIT_INCREMENT = 0.1
 
 # Global vars
 ready_time = 0
@@ -33,6 +28,7 @@ last_slot = ""
 
 
 def wait_until_ready():
+    """ Wait until last fed card has passed its gate """
     global ready_time
     if ready_time > 0:
         t = 0
@@ -45,15 +41,16 @@ def wait_until_ready():
 def configure_gpio():
     GPIO.setmode(GPIO.BOARD)
     GPIO.setwarnings(False)
-    GPIO.setup(MOTOR_PIN, GPIO.OUT)
+    GPIO.setup(MOTOR, GPIO.OUT)
     GPIO.setup(GATE_1, GPIO.OUT)
     GPIO.setup(GATE_2, GPIO.OUT)
     GPIO.setup(GATE_3, GPIO.OUT)
-    GPIO.setup(INPUT_1, GPIO.OUT)
-    GPIO.setup(INPUT_2, GPIO.OUT)
-    GPIO.setup(FEED_PIN, GPIO.OUT)
-    GPIO.setup(LAMP_PIN, GPIO.OUT)
-    GPIO.setup(CARD_FED_PIN, GPIO.IN)
+    GPIO.setup(DRIVER_1, GPIO.OUT)
+    GPIO.setup(DRIVER_2, GPIO.OUT)
+    GPIO.setup(LAMP, GPIO.OUT)
+    #
+    GPIO.setup(CARD_FED, GPIO.IN)
+    GPIO.setup(BOARD_SWITCH, GPIO.IN, pull_up_down=GPIO.PUD_UP)
 
 
 def reset():
@@ -62,11 +59,10 @@ def reset():
     GPIO.output(GATE_1, GPIO.LOW)
     GPIO.output(GATE_2, GPIO.LOW)
     GPIO.output(GATE_3, GPIO.LOW)
-    GPIO.output(INPUT_1, GPIO.LOW)
-    GPIO.output(INPUT_2, GPIO.LOW)
-    GPIO.output(MOTOR_PIN, GPIO.LOW)
-    GPIO.output(FEED_PIN, GPIO.LOW)
-    GPIO.output(LAMP_PIN, GPIO.LOW)
+    GPIO.output(DRIVER_1, GPIO.LOW)
+    GPIO.output(DRIVER_2, GPIO.LOW)
+    GPIO.output(MOTOR, GPIO.LOW)
+    GPIO.output(LAMP, GPIO.LOW)
 
 
 class Gate:
@@ -120,38 +116,38 @@ def set_north():
 
 
 def feed_forward():
-    GPIO.output(INPUT_2, GPIO.HIGH)
-    GPIO.output(INPUT_1, GPIO.LOW)
+    GPIO.output(DRIVER_2, GPIO.HIGH)
+    GPIO.output(DRIVER_1, GPIO.LOW)
 
 
 def feed_backwards():
-    GPIO.output(INPUT_1, GPIO.HIGH)
-    GPIO.output(INPUT_2, GPIO.LOW)
+    GPIO.output(DRIVER_1, GPIO.HIGH)
+    GPIO.output(DRIVER_2, GPIO.LOW)
 
 
 def feed_stop():
-    GPIO.output(INPUT_1, GPIO.LOW)
-    GPIO.output(INPUT_2, GPIO.LOW)
+    GPIO.output(DRIVER_1, GPIO.LOW)
+    GPIO.output(DRIVER_2, GPIO.LOW)
 
 
 def motor_on():
-    GPIO.output(MOTOR_PIN, GPIO.HIGH)
+    GPIO.output(MOTOR, GPIO.HIGH)
 
 
 def motor_off():
-    GPIO.output(MOTOR_PIN, GPIO.LOW)
+    GPIO.output(MOTOR, GPIO.LOW)
 
 
 def lamp_on():
-    GPIO.output(LAMP_PIN, GPIO.HIGH)
+    GPIO.output(LAMP, GPIO.HIGH)
 
 
 def lamp_off():
-    GPIO.output(LAMP_PIN, GPIO.LOW)
+    GPIO.output(LAMP, GPIO.LOW)
 
 
 def is_fed():
-    return GPIO.input(CARD_FED_PIN) == 0
+    return GPIO.input(CARD_FED) == 0
 
 
 def feed_reset(duration=0.05):
@@ -193,15 +189,17 @@ def feed(wait=1, camera=None):
 def feed_card(slot="N", camera=None):
     global ready_time, last_slot
     if slot == last_slot:
-        print("Feed immediately")
+        pass
+        # print("Feed immediately")
     elif last_slot == "N" and slot in ["S", "W"]:
-        print("case 2")
+        pass
+        #print("case 2")
     elif ready_time > 0:
         t = 0
         while time.time() < ready_time:
             time.sleep(0.01)
             t += 1
-        print(f"Waited {t*10} ms")
+        #print(f"Waited {t*10} ms")
 
     if slot == "S":
         set_south()
@@ -222,7 +220,7 @@ def feed_card(slot="N", camera=None):
     feed_reset(duration=0.2)
     if feed(delay, camera=camera):
         return True
-    print("Feed error - Stopped for key")
+    print("Feed error")
     input()
 
 
@@ -236,16 +234,21 @@ def wait_time(slot):
     elif slot == "N":
         return WAIT_BASE + 3 * WAIT_INCREMENT
 
-
+def board_present():
+    return GPIO.input(BOARD_SWITCH) == 0 
+    
 def feed_pack(count=13):
     reset()
-    motor_on()
-    for i in range(count):
-        feed_card("N")
-        feed_card("S")
-        feed_card("E")
-        feed_card("W")
-    reset()
+    if not board_present():
+        print("Insert board")
+    else:
+        motor_on()
+        for i in range(count):
+            feed_card("N")
+            feed_card("S")
+            feed_card("E")
+            feed_card("W")
+        reset()
 
 
 def gate_test():

@@ -23,12 +23,14 @@ class Dealer:
         self.pack = None
         self.card = ""
         self.dealt = []
+        self.suiter = {"C":"S", "D":"E", "H":"W", "S":"N"}
         self.camera = camera
         camera.debug = True
 
     def is_ready(self):
         reset()
         lamp_on()
+        time.sleep(0.5)
         camera.capture()
         tries = 0
         while not camera.read_card():
@@ -38,25 +40,29 @@ class Dealer:
             print("No card")
             if tries == 100:
                 return False
+        print("Ready")
         return True
 
     def deal(self, pack=None):
         if pack:
             self.pack = pack
-        if self.pack is None:
-            raise ValueError("No pack to deal")
         self.dealt = []
         if self.is_ready():
-            motor_on()
             for r in range(52 - len(self.dealt)):
                 print(f"{52 - len(self.dealt)} cards remaining")
-
-            reset()
+                if not self.deal_card():
+                    print("Deal failure")
+                    self.debug()
+                    reset()
+                    return False
+            return True
+        print("Not ready")
 
     def deal_card(self):
         """ Deal next card from the pack """
-        feed_reset(duration=0.05)
-        camera.capture()
+        motor_on()
+        #feed_reset(duration=0.05)
+        #camera.capture()
         retries = 0
         while not self.next_card():
             print("Rewind")
@@ -64,62 +70,48 @@ class Dealer:
             camera.capture()
             retries += 1
             if retries > 5:
-                raise ValueError("Card retries exceeded")
-        if self.card in self.dealt:
-            self.debug()
-            print(f"Card {self.card} has already been dealt")
-            reset()
-            return
-        if self.card in self.pack:
-            slot = self.pack[self.card][0]
-            print("Card", self.card, slot)
-            feed_card(slot, camera=None)
-            self.dealt.append(self.card)
+                return False
+        if self.pack:
+            # Use a preset deal
+            try:
+                slot = self.pack[self.card][0]
+            except KeyError:
+                print(f"Bad card: {self.card}")
+                return False
         else:
-            print(f"Bad card: {self.card}")
-            self.debug()
-            reset()
-            return
+            # Deal into suits
+            try:
+                slot = self.suiter[self.card[1]]
+            except KeyError:
+                print(f"Bad card: {self.card}")
+                return False
+        print("Card", self.card, slot)
+        if self.card in self.dealt:
+            print(f"Card {self.card} already dealt")
+            return False
+        if feed_card(slot, camera=camera):
+            self.dealt.append(self.card)
+            return True
+        print("Feed failure {self.card}")
+        return False
+
 
     def next_card(self):
         """
         Read captured image and decode into self.card"
         Return True if successful
         """
-        self.card = "--"
-        camera.read_card()
-        rank_template, suit_template = camera.match()
-        rank = rank_template.name if rank_template else "?"
-        suit = suit_template.name if suit_template else "X"
-        self.card = f"{rank}{suit}"
-        if "?" in self.card or "X" in self.card:
-            return False
-        return True
+        if camera.read_card():
+            self.card = camera.match()
+            if "?" in self.card:
+                return False
+            return True
+        return False
 
     def debug(self):
         cv2.imshow("Rank", camera.rank_image)
         cv2.imshow("Suit", camera.suit_image)
         cv2.waitKey(5)
-
-
-def camera_test():
-    lamp_on()
-    time.sleep(2)
-    motor_on()
-    camera.capture()
-    while True:
-        camera.read_card()
-        # cv2.imshow("Input", camera.image)
-        cv2.imshow("Rank", camera.rank_image)
-        cv2.imshow("Suit", camera.suit_image)
-        k = cv2.waitKey(1)
-        if k == ord("q"):
-            reset()
-            break
-        if k == ord("f"):
-            feed_card("N", camera)
-        camera.capture()
-
 
 #
 # pack = suit_sorter()

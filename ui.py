@@ -1,7 +1,7 @@
 from pbn_reader import create_packs
 from dealer import Dealer
 from pathlib import Path
-from mechanics import reset
+from mechanics import reset, board_present
 
 pbn_path = Path("pbns/230801.pbn")
 packs = create_packs(pbn_path)
@@ -10,4 +10,6 @@ dealer = Dealer()
 while not dealer.is_ready():
     print("Waiting")
 if dealer.is_ready():
+    while not board_present():
+        print("Insert board")
     dealer.deal(packs[0])
