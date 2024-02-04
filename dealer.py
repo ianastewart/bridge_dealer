@@ -55,6 +55,7 @@ class Dealer:
                     self.debug()
                     reset()
                     return False
+            reset()
             return True
         print("Not ready")
 

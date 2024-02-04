@@ -60,5 +60,5 @@ def create_packs(file_path: Path) -> List[Dict[str, str]]:
                 for card in deal.hands[direction].cards
             ]:
                 pack[card] = direction.name[0]
-            result.append(pack)
+        result.append(pack)
     return result

@@ -3,13 +3,34 @@ from dealer import Dealer
 from pathlib import Path
 from mechanics import reset, board_present
 
-pbn_path = Path("pbns/230801.pbn")
+pbn_name = "230801.pbn"
+pbn_path = Path(f"pbns/{pbn_name}")
 packs = create_packs(pbn_path)
-print("Packs ready")
+print(f"{pbn_name} contains {len(packs)} boards")
 dealer = Dealer()
-while not dealer.is_ready():
-    print("Waiting")
-if dealer.is_ready():
-    while not board_present():
-        print("Insert board")
-    dealer.deal(packs[0])
+keyed = ""
+while True:
+    valid = False
+    while not valid:
+        keyed = input("Enter board number or q: ")
+        if keyed == "q":
+            valid = True
+        if keyed.isnumeric():
+            number = int(keyed)
+            if number > 0 and number <= len(packs):
+                valid = True
+            else:
+                print(f"Number not in range 1 to {len(packs)}")
+    if keyed == "q":
+        break
+    print(f"Preparing to deal board {number}")
+    while not dealer.is_ready():
+        print("Waiting")
+    if dealer.is_ready():
+        while not board_present():
+            print("Insert board")
+        if dealer.deal(packs[number]):
+            print(f"Board {number} completed")
+        else:
+            print(f"Board {number} failed")
+            break
