@@ -3,7 +3,7 @@ from dealer import Dealer
 from pathlib import Path
 from mechanics import reset, board_present
 
-pbn_name = "240204.pbn"
+pbn_name = "240206.pbn"
 pbn_path = Path(f"pbns/{pbn_name}")
 packs = create_packs(pbn_path)
 print(f"{pbn_name} contains {len(packs)} boards")
