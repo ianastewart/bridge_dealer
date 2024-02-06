@@ -31,6 +31,7 @@ class Dealer:
         reset()
         lamp_on()
         time.sleep(0.5)
+        feed_reset()
         camera.capture()
         tries = 0
         while not camera.read_card():
