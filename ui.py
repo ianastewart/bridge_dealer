@@ -1,9 +1,9 @@
 from pbn_reader import create_packs
 from dealer import Dealer
 from pathlib import Path
-from mechanics import reset, board_present
+from mechanics import board_present
 
-pbn_name = "240218.pbn"
+pbn_name = "240402.pbn"
 pbn_path = Path(f"pbns/{pbn_name}")
 packs = create_packs(pbn_path)
 print(f"{pbn_name} contains {len(packs)} boards")
