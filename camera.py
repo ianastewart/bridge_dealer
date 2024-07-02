@@ -18,7 +18,7 @@ X2 = 380
 Y1 = 20
 Y2 = 400
 
-THRESHOLD = 160
+THRESHOLD = 150 #160
 
 # Dimensions of binary masks
 WIDTH = 110
@@ -94,9 +94,9 @@ class Camera:
             return False
         self.source = self.image[Y1:Y2, X1:X2].copy()
         gray = cv2.cvtColor(self.source, cv2.COLOR_BGR2GRAY)
-        _, binary = cv2.threshold(gray, THRESHOLD, 255, cv2.THRESH_BINARY_INV)
+        _, self.binary = cv2.threshold(gray, THRESHOLD, 255, cv2.THRESH_BINARY_INV)
         contours, hierarchy = cv2.findContours(
-            binary, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE
+            self.binary, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE
         )
         bounds_all = [cv2.boundingRect(contour) for contour in contours]
         bounds_filtered = filter(lambda x: 1 < x[0] < 100, bounds_all)
@@ -111,12 +111,13 @@ class Camera:
                     self.source, (b[0], b[1]), (b[0] + b[2], b[1] + b[3]), colour, 2
                 )
             cv2.imshow("Contours", self.source)
+            cv2.imshow("Binary", self.binary)
             cv2.waitKey(1)
         self.rank_image = None
         self.suit_image = None       
         if len(bounds) >= 2:
-            rank = self.crop_bounds(binary, bounds[0])
-            suit = self.crop_bounds(binary, bounds[1])
+            rank = self.crop_bounds(self.binary, bounds[0])
+            suit = self.crop_bounds(self.binary, bounds[1])
         else:
             self.error = "Contours < 2"
             return False
@@ -127,7 +128,7 @@ class Camera:
                     # Look for a boundary with similar Y and similar h to the largest boundary
                     # and extend the largest boundary to include it
                     if abs(b[1] - bounds[0][1]) < 10 and abs(b[3] - bounds[0][3]) < 10:
-                        rank = binary[
+                        rank = self.binary[
                             bounds[0][1] : bounds[0][1] + bounds[0][3],
                             b[0] : bounds[0][0] + bounds[0][2],
                         ]
@@ -207,7 +208,7 @@ class Camera:
             self.picam2.stop()
 
 def camera_test():
-    lamp_on()
+    lamp_on()  
     time.sleep(2)
     camera.debug=True
     while True:
@@ -219,9 +220,9 @@ def camera_test():
         key = cv2.waitKey()
         if key == ord("q"):
             return
-        # cv2.imshow("Input", camera.image)
-        #cv2.imshow("Rank", camera.rank_image)
-        #cv2.imshow("Suit", camera.suit_image)
+        cv2.imshow("Input", camera.image)
+        cv2.imshow("Rank", camera.rank_image)
+        cv2.imshow("Suit", camera.suit_image)
 
 
 camera = Camera()
