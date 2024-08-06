@@ -31,7 +31,7 @@ def main_loop():
             else:
                 print(f"Board {number} failed")
 
-pbn_name = "240702.pbn"
+pbn_name = "240806.pbn"
 pbn_path = Path(f"pbns/{pbn_name}")
 packs = create_packs(pbn_path)
 print(f"{pbn_name} contains {len(packs)} boards")

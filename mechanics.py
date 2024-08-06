@@ -21,7 +21,7 @@ BOARD_SWITCH = 36
 FEED_PULSE = 0.00
 WAIT_BASE = 0.1
 WAIT_INCREMENT = 0.1
-
+FEED_RETRIES = 5
 # Global vars
 ready_time = 0
 last_slot = ""
@@ -214,14 +214,15 @@ def feed_card(slot="N", camera=None):
         set_north()
         delay = WAIT_BASE + 3 * WAIT_INCREMENT
     last_slot = slot
-    if feed(delay, camera=camera):
-        return True
-    print("Feed_error - retrying")
-    feed_reset(duration=0.2)
-    if feed(delay, camera=camera):
-        return True
-    print("Feed error")
-    input()
+    retry = 0
+    while retry < FEED_RETRIES:
+        if feed(delay, camera=camera):
+            return True
+        retry += 1
+        print(f"Feed_error - retrying {retry}")
+        feed_reset(duration=0.2)
+    print("Fatal feed error")
+    motor_off()
 
 
 def wait_time(slot):
