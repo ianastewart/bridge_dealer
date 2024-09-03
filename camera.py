@@ -224,5 +224,11 @@ def camera_test():
         cv2.imshow("Rank", camera.rank_image)
         cv2.imshow("Suit", camera.suit_image)
 
+def camera_image():
+    while True:
+        camera.capture()
+        cv2.imshow("Image", camera.image)
+        cv2.waitKey()
+        
 
 camera = Camera()
