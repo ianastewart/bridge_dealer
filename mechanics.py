@@ -18,7 +18,7 @@ CARD_FED = 18
 BOARD_SWITCH = 36
 
 # Time in seconds after card detected as fed
-FEED_PULSE = 0.00
+FEED_PULSE = 0.05
 WAIT_BASE = 0.1
 WAIT_INCREMENT = 0.1
 FEED_RETRIES = 5
