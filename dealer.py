@@ -7,7 +7,7 @@ from mechanics import reset, motor_on, motor_off, feed_card, feed_reset, lamp_on
 
 RANKS = "23456789TJQKA"
 SUITS = "CDHS"
-
+DEALT_KEYS = ["All", "N", "E", "S", "W"]
 
 def suit_sorter():
     sorted_pack = {}
@@ -22,7 +22,7 @@ class Dealer:
     def __init__(self):
         self.pack = None
         self.card = ""
-        self.dealt = []
+        self.dealt = {}
         self.suiter = {"C":"S", "D":"E", "H":"W", "S":"N"}
         self.camera = camera
         camera.debug = True
@@ -47,24 +47,25 @@ class Dealer:
     def deal(self, pack=None):
         if pack:
             self.pack = pack
-        self.dealt = []
+        for key in DEALT_KEYS:
+            self.dealt[key] = []
         if self.is_ready():
-            for r in range(52 - len(self.dealt)):
-                print(f"{52 - len(self.dealt)} cards remaining")
+            for r in range(52):
+                print(f"Card number {r+1}",)
                 if not self.deal_card():
                     print("Deal failure")
                     self.debug()
                     reset()
+                    self.print_dealt()
                     return False
             reset()
+            self.print_dealt()
             return True
         print("Not ready")
 
     def deal_card(self):
         """ Deal next card from the pack """
         motor_on()
-        #feed_reset(duration=0.05)
-        #camera.capture()
         retries = 0
         while not self.next_card():
             print("Rewind")
@@ -87,12 +88,13 @@ class Dealer:
             except KeyError:
                 print(f"Bad card: {self.card}")
                 return False
-        print("Card", self.card, slot)
-        if self.card in self.dealt:
+        print(self.card, slot)
+        if self.card in self.dealt["All"]:
             print(f"Card {self.card} already dealt")
             return False
         if feed_card(slot, camera=camera):
-            self.dealt.append(self.card)
+            self.dealt[slot].append(self.card)
+            self.dealt["All"].append(self.card)
             return True
         print("Feed failure {self.card}")
         return False
@@ -110,6 +112,11 @@ class Dealer:
             return True
         return False
 
+    def print_dealt(self):
+        for key in ["All", "N", "E", "S", "W"]:
+            print(f"{key}: " + " ".join(self.dealt[key]))
+                           
+    
     def debug(self):
         cv2.imshow("Rank", camera.rank_image)
         cv2.imshow("Suit", camera.suit_image)

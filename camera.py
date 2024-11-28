@@ -185,6 +185,7 @@ class Camera:
         cv2.putText(self.source, card, (20, 30),cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2, cv2.LINE_AA)
         cv2.imshow("Contours", self.source)
         cv2.waitKey(1)
+        return card
         if self.debug_templates:
             print(f"Card = {card}")
             self.debug_templates(self.rank_templates)
