@@ -150,7 +150,7 @@ def is_fed():
     return GPIO.input(CARD_FED) == 0
 
 
-def feed_reset(duration=0.05):
+def feed_reset(duration=0.1):
     feed_backwards()
     time.sleep(duration)
     feed_stop()
@@ -244,6 +244,7 @@ def feed_pack(count=13):
         print("Insert board")
     else:
         motor_on()
+        time.sleep(0.5)
         for i in range(count):
             feed_card("N")
             feed_card("S")

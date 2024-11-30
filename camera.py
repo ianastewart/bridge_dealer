@@ -16,9 +16,10 @@ except ImportError:
 X1 = 200
 X2 = 380
 Y1 = 20
-Y2 = 400
+Y2 = 390
 
-THRESHOLD = 150 #160
+THRESHOLD = 130
+
 
 # Dimensions of binary masks
 WIDTH = 110
@@ -45,7 +46,7 @@ class Camera:
     rank_image = None
     rank_templates = []
     suit_templates = []
-    debug = 0
+    debug = True
     debug_templates = False
     error = ""
 
@@ -86,7 +87,7 @@ class Camera:
             print("Tries", tries)
         return True
 
-    def read_card(self):
+    def read_card(self, threshold=THRESHOLD):
         self.suit_image = None
         self.rank_image = None
         if self.image is None:
@@ -94,7 +95,7 @@ class Camera:
             return False
         self.source = self.image[Y1:Y2, X1:X2].copy()
         gray = cv2.cvtColor(self.source, cv2.COLOR_BGR2GRAY)
-        _, self.binary = cv2.threshold(gray, THRESHOLD, 255, cv2.THRESH_BINARY_INV)
+        _, self.binary = cv2.threshold(gray, threshold, 255, cv2.THRESH_BINARY_INV)
         contours, hierarchy = cv2.findContours(
             self.binary, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE
         )
@@ -140,10 +141,10 @@ class Camera:
         self.suit_bounds = bounds[1]
         self.rank_image = cv2.resize(rank, (WIDTH, RANK_HEIGHT))
         self.suit_image = cv2.resize(suit, (WIDTH, SUIT_HEIGHT))
-#         if self.debug:
-#             cv2.imshow("Rank", self.rank_image)
-#             cv2.imshow("Suit", self.suit_image)
-#             cv2.waitKey(1)
+        if self.debug:
+           cv2.imshow("Rank", self.rank_image)
+           cv2.imshow("Suit", self.suit_image)
+           cv2.waitKey(1)
         return True
 
     def match(self):
@@ -185,7 +186,6 @@ class Camera:
         cv2.putText(self.source, card, (20, 30),cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2, cv2.LINE_AA)
         cv2.imshow("Contours", self.source)
         cv2.waitKey(1)
-        return card
         if self.debug_templates:
             print(f"Card = {card}")
             self.debug_templates(self.rank_templates)
@@ -208,24 +208,50 @@ class Camera:
         if self.picam2:
             self.picam2.stop()
 
+def camera_calibrate():
+    from mechanics import feed, motor_on, motor_off
+    # Determine best threshold the threshold
+    lamp_on()  
+    time.sleep(2)
+    camera.debug=True
+    t = THRESHOLD
+    while True:
+        camera.capture()
+        camera.read_card(threshold=t)
+        motor_off()
+        key = cv2.waitKey()
+        if key == ord("f"):
+            motor_on()
+            time.sleep(0.5)
+            feed()
+        if key == ord("q"):
+            return
+        elif key == ord("+"):
+            t += 10
+        elif key == ord("-"):
+            t -= 10
+        print("Theshold:", t)
+        cv2.imshow("Input", camera.image)
+
 def camera_test():
     lamp_on()  
     time.sleep(2)
     camera.debug=True
+    t = THRESHOLD
     while True:
         camera.capture()
-        if camera.read_card():
-            print(camera.match())
+        if camera.read_card(threshold=t):
+           print(camera.match())
         else:
-            print("No card")
+           print("No card")
         key = cv2.waitKey()
-        if key == ord("q"):
-            return
         cv2.imshow("Input", camera.image)
         cv2.imshow("Rank", camera.rank_image)
         cv2.imshow("Suit", camera.suit_image)
 
+
 def camera_image():
+    lamp_on()
     while True:
         camera.capture()
         cv2.imshow("Image", camera.image)

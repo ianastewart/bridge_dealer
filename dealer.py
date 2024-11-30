@@ -122,7 +122,7 @@ class Dealer:
         cv2.imshow("Suit", camera.suit_image)
         cv2.waitKey(5)
 
-#
+def suits():
 # pack = suit_sorter()
-# dealer = Dealer()
-# dealer.deal(pack)
+    dealer = Dealer()
+    dealer.deal()

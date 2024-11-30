@@ -6,7 +6,7 @@ from camera import camera
 from mechanics import reset, motor_on, lamp_on, feed_card, feed_reset
 
 
-def calibrate(name="images"):
+def calibrate(name="images2"):
     """
     Reads 4 cards with suits in sequence C D H S to South slot
     Then 13 cards in order of rank 2 to A to West slot
