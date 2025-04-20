@@ -74,32 +74,26 @@ images = []
 
 
 # calibrate()
-def capture_stream():
+def capture_raw():
+    name = input("Name")
+    img_path = os.path.dirname(os.path.abspath(__file__)) + f"/raw/"
+    # clear_dir("raw")
     reset()
     motor_on()
     lamp_on()
     time.sleep(1)
-    while True:
-        feed_on()
-        t1 = 0
-        while not is_fed():
-            camera.capture()
-            images.append(cam.image)
-            t1 += 1
-            time.sleep(0.005)
-            if t1 == 100:
-                return
+    for r in range(13):
         camera.capture()
-        images.append(cam.image)
-        feed_off()
-        print(len(images))
-        k = input()
-        if k == "q":
-            return
-        show()
+        file = f"{img_path}{name}{r}.png"
+        cv2.imwrite(file, camera.image)
+        feed_card("S")
+    reset()
 
 
 def show():
-    for i in range(len(images)):
-        cv2.imshow(str(i), images[i])
+    img_path = os.path.dirname(os.path.abspath(__file__)) + f"/raw/"
+    while True:
+        name = input("Name: ")
+        image = cv2.imread(f"{img_path}{name}.png", cv2.IMREAD_GRAYSCALE)
+        cv2.imshow(name, image)
         cv2.waitKey(1)

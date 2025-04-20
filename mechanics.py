@@ -18,8 +18,8 @@ CARD_FED = 18
 BOARD_SWITCH = 36
 
 # Time in seconds after card detected as fed
-FEED_PULSE = 0.05
-WAIT_BASE = 0.1
+FEED_PULSE = 0.01
+WAIT_BASE = 0.0
 WAIT_INCREMENT = 0.1
 FEED_RETRIES = 5
 # Global vars
@@ -247,9 +247,9 @@ def feed_pack(count=13):
         time.sleep(0.5)
         for i in range(count):
             feed_card("N")
-            feed_card("S")
             feed_card("E")
             feed_card("W")
+            feed_card("S")
         reset()
 
 

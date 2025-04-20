@@ -13,10 +13,10 @@ except ImportError:
 
 
 # Crop positions to extract top left of card
-X1 = 200
-X2 = 380
-Y1 = 20
-Y2 = 390
+X1 = 270 #200
+X2 = 480 #380
+Y1 = 50 #20
+Y2 = 450 #390
 
 THRESHOLD = 130
 
@@ -128,10 +128,11 @@ class Camera:
                     # Handle rank = 10 which has two contours
                     # Look for a boundary with similar Y and similar h to the largest boundary
                     # and extend the largest boundary to include it
-                    if abs(b[1] - bounds[0][1]) < 10 and abs(b[3] - bounds[0][3]) < 10:
+                    if abs(b[1] - bounds[0][1]) < 15 and abs(b[3] - bounds[0][3]) < 15:
+                        cv2.rectangle(self.binary, ([b], (255,255,255_, -1)
                         rank = self.binary[
                             bounds[0][1] : bounds[0][1] + bounds[0][3],
-                            b[0] : bounds[0][0] + bounds[0][2],
+                            b[0]+5 : bounds[0][0] + bounds[0][2],
                         ]
                         break
         else:
@@ -224,6 +225,7 @@ def camera_calibrate():
             motor_on()
             time.sleep(0.5)
             feed()
+            motor_off()
         if key == ord("q"):
             return
         elif key == ord("+"):
@@ -255,6 +257,7 @@ def camera_image():
     while True:
         camera.capture()
         cv2.imshow("Image", camera.image)
+        cv2.rectangle(camera.image, (X1, Y1),(X2, Y2), (255,0,0),2)
         cv2.waitKey()
         
 
