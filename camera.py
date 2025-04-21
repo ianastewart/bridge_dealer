@@ -13,18 +13,19 @@ except ImportError:
 
 
 # Crop positions to extract top left of card
-X1 = 270 #200
-X2 = 480 #380
+X1 = 250camera#200
+X2 = 530 #380
 Y1 = 50 #20
 Y2 = 450 #390
 
-THRESHOLD = 130
+THRESHOLD = 135
 
 
 # Dimensions of binary masks
 WIDTH = 110
 SUIT_HEIGHT = 130
 RANK_HEIGHT = 190
+
 
 RANK_DIFF_MAX = 7000
 SUIT_DIFF_MAX = 4000
@@ -39,6 +40,7 @@ class Template:
 
 
 class Camera:
+    threshold = THRESHOLD
     picam2 = None
     image = None
     gray = None
@@ -87,7 +89,7 @@ class Camera:
             print("Tries", tries)
         return True
 
-    def read_card(self, threshold=THRESHOLD):
+    def read_card(self):
         self.suit_image = None
         self.rank_image = None
         if self.image is None:
@@ -95,7 +97,7 @@ class Camera:
             return False
         self.source = self.image[Y1:Y2, X1:X2].copy()
         gray = cv2.cvtColor(self.source, cv2.COLOR_BGR2GRAY)
-        _, self.binary = cv2.threshold(gray, threshold, 255, cv2.THRESH_BINARY_INV)
+        _, self.binary = cv2.threshold(gray, self.threshold, 255, cv2.THRESH_BINARY_INV)
         contours, hierarchy = cv2.findContours(
             self.binary, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE
         )
@@ -113,9 +115,7 @@ class Camera:
                 )
             cv2.imshow("Contours", self.source)
             cv2.imshow("Binary", self.binary)
-            cv2.waitKey(1)
-        self.rank_image = None
-        self.suit_image = None       
+            cv2.waitKey(1)       
         if len(bounds) >= 2:
             rank = self.crop_bounds(self.binary, bounds[0])
             suit = self.crop_bounds(self.binary, bounds[1])
@@ -129,7 +129,6 @@ class Camera:
                     # Look for a boundary with similar Y and similar h to the largest boundary
                     # and extend the largest boundary to include it
                     if abs(b[1] - bounds[0][1]) < 15 and abs(b[3] - bounds[0][3]) < 15:
-                        cv2.rectangle(self.binary, ([b], (255,255,255_, -1)
                         rank = self.binary[
                             bounds[0][1] : bounds[0][1] + bounds[0][3],
                             b[0]+5 : bounds[0][0] + bounds[0][2],
@@ -218,7 +217,9 @@ def camera_calibrate():
     t = THRESHOLD
     while True:
         camera.capture()
-        camera.read_card(threshold=t)
+        camera.threshold = t
+        camera.read_card()
+        cv2.imshow("Input", camera.image)        
         motor_off()
         key = cv2.waitKey()
         if key == ord("f"):
@@ -233,23 +234,26 @@ def camera_calibrate():
         elif key == ord("-"):
             t -= 10
         print("Theshold:", t)
-        cv2.imshow("Input", camera.image)
+
 
 def camera_test():
     lamp_on()  
     time.sleep(2)
     camera.debug=True
-    t = THRESHOLD
     while True:
         camera.capture()
-        if camera.read_card(threshold=t):
-           print(camera.match())
-        else:
-           print("No card")
-        key = cv2.waitKey()
         cv2.imshow("Input", camera.image)
-        cv2.imshow("Rank", camera.rank_image)
-        cv2.imshow("Suit", camera.suit_image)
+        if camera.read_card():
+            print(camera.match())          
+            cv2.imshow("Rank", camera.rank_image)
+            cv2.imshow("Suit", camera.suit_image)
+        else:
+            print("No card")
+        key = cv2.waitKey()
+        if key == ord("q"):
+            lamp_off()
+            return
+
 
 
 def camera_image():

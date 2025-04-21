@@ -19,23 +19,28 @@ def calibrate(name="images2"):
 
     reset()
     lamp_on()
-    camera.debug = False
-    time.sleep(2)
+    camera.debug = True
+    camera.capture()
+    time.sleep(1)
     motor_on()
-    feed_reset()
     for s in suit:
+        feed_reset()
         camera.capture()
-        camera.read_card()
-        file = img_path + f"{s}.png"
-        cv2.imwrite(file, camera.suit_image)
-        feed_card("S")
-
+        if camera.read_card():
+            file = img_path + f"{s}.png"
+            cv2.imwrite(file, camera.suit_image)
+            feed_card("S")
+        else:
+            print("No suit image")
     for r in rank:
+        feed_reset()
         camera.capture()
-        camera.read_card()
-        file = img_path + f"{r}.png"
-        cv2.imwrite(file, camera.rank_image)
-        feed_card("W")
+        if camera.read_card():
+            file = img_path + f"{r}.png"
+            cv2.imwrite(file, camera.rank_image)
+            feed_card("W")
+        else:
+            print("No rank image")
     time.sleep(1)
     reset()
 
@@ -75,18 +80,37 @@ images = []
 
 # calibrate()
 def capture_raw():
-    name = input("Name")
-    img_path = os.path.dirname(os.path.abspath(__file__)) + f"/raw/"
-    # clear_dir("raw")
+    name = input("Folder name: ")
+    img_path = os.path.dirname(os.path.abspath(__file__)) + f"/{name}/"
+    if not os.path.exists(img_path):
+        os.makedirs(img_path)
+    if os.listdir(img_path):
+        clear = input("Delete existing files? ").lower()
+        if clear in ["yes", "y"]:
+            clear_dir("img_path")
     reset()
     motor_on()
     lamp_on()
     time.sleep(1)
-    for r in range(13):
-        camera.capture()
-        file = f"{img_path}{name}{r}.png"
+    camera.capture()
+    for r in range(52):
+        #feed_reset()
+        #camera.capture()
+        file = f"{img_path}{r}.png"
+        print(file)
+        cv2.imshow("Image", camera.image)
+        cv2.waitKey(1)
         cv2.imwrite(file, camera.image)
-        feed_card("S")
+        if r < 13:
+            dest = "S"
+        elif r < 26:
+            dest = "W"
+        elif r < 39:
+            dest = "E"
+        else:
+            dest = "N"
+        feed_card(dest, camera=camera)
+        
     reset()
 
 
@@ -97,3 +121,5 @@ def show():
         image = cv2.imread(f"{img_path}{name}.png", cv2.IMREAD_GRAYSCALE)
         cv2.imshow(name, image)
         cv2.waitKey(1)
+
+capture_raw()
