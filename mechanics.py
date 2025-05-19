@@ -3,7 +3,7 @@ import time
 try:
     import RPi.GPIO as GPIO
 except ImportError:
-    import Mock.GPIO as GPIO
+    print("No RPi.GPIO")
 
 # Output pins
 LAMP = 16
@@ -200,10 +200,9 @@ def feed_card(slot="N", camera=None):
             time.sleep(0.01)
             t += 1
         #print(f"Waited {t*10} ms")
-
+    delay = WAIT_BASE
     if slot == "S":
         set_south()
-        delay = WAIT_BASE
     elif slot == "W":
         set_west()
         delay = WAIT_BASE + WAIT_INCREMENT
@@ -216,7 +215,7 @@ def feed_card(slot="N", camera=None):
     last_slot = slot
     retry = 0
     while retry < FEED_RETRIES:
-        if feed(delay, camera=camera):
+        if feed(int(delay), camera=camera):
             return True
         retry += 1
         print(f"Feed_error - retrying {retry}")

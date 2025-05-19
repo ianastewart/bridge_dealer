@@ -3,20 +3,22 @@ import cv2
 import numpy as np
 import time
 from dataclasses import dataclass
-from mechanics import lamp_on
+from pathlib import Path
 
 PI = True
 try:
     from picamera2 import Picamera2
+    from mechanics import lamp_on, lamp_off
 except ImportError:
     PI = False
+    print("No picamera2")
 
 
 # Crop positions to extract top left of card
-X1 = 250#200
-X2 = 530 #380
-Y1 = 50 #20
-Y2 = 450 #390
+X1 = 250  # 200
+X2 = 530  # 380
+Y1 = 50  # 20
+Y2 = 450  # 390
 
 THRESHOLD = 135
 
@@ -51,31 +53,48 @@ class Camera:
     debug = True
     debug_templates = False
     error = ""
+    base_path = None
+    sim_folder = None
+    iter = None
+    count = 0
 
-    def __init__(self):
-        if PI:
+    def __init__(self, mock_source="green", template="merged"):
+        self.base_path = Path(__file__).parent
+        if not PI:
+            self.sim_folder = self.base_path.joinpath("rawimages", mock_source)
+            self.iter = self.sim_folder.iterdir()
+        else:
             self.picam2 = Picamera2()
             self.picam2.preview_configuration.main.size = (640, 480)
             self.picam2.preview_configuration.main.format = "RGB888"
             self.picam2.set_controls({"Contrast": 8})
             self.picam2.start()
+
         for rank in "23456789TJQKA":
-            image = cv2.imread(f"{IMG_PATH}{rank}.png", cv2.IMREAD_GRAYSCALE)
+            file = self.base_path.joinpath(template, f"{rank}.png")
+            image = cv2.imread(file, cv2.IMREAD_GRAYSCALE)
             self.rank_templates.append(Template(image=image, name=rank, score=0))
         for suit in "CDHS":
-            image = cv2.imread(f"{IMG_PATH}{suit}.png", cv2.IMREAD_GRAYSCALE)
+            file = self.base_path.joinpath(template, f"{suit}.png")
+            image = cv2.imread(file, cv2.IMREAD_GRAYSCALE)
             self.suit_templates.append(Template(image=image, name=suit, score=0))
 
-    def lamp(self):
-        lamp_on()
-        
     def capture(self):
         if PI:
             self.image = self.picam2.capture_array()
         else:
-            self.image = None
+            self.next()
         self.suit_image = None
         self.rank_image = None
+
+    def next(self):
+        file = self.iter.__next__()
+        self.count += 1
+        print(file, self.count)
+        self.image = cv2.imread(file, cv2.IMREAD_COLOR_BGR)
+        if not PI:
+            cv2.imshow("Next", self.image)
+            cv2.waitKey(1)
 
     def is_ready(self):
         self.capture()
@@ -115,7 +134,7 @@ class Camera:
                 )
             cv2.imshow("Contours", self.source)
             cv2.imshow("Binary", self.binary)
-            cv2.waitKey(1)       
+            cv2.waitKey(1)
         if len(bounds) >= 2:
             rank = self.crop_bounds(self.binary, bounds[0])
             suit = self.crop_bounds(self.binary, bounds[1])
@@ -131,20 +150,20 @@ class Camera:
                     if abs(b[1] - bounds[0][1]) < 15 and abs(b[3] - bounds[0][3]) < 15:
                         rank = self.binary[
                             bounds[0][1] : bounds[0][1] + bounds[0][3],
-                            b[0]+5 : bounds[0][0] + bounds[0][2],
+                            b[0] + 5 : bounds[0][0] + bounds[0][2],
                         ]
                         break
         else:
-            self.error = "Contours > 4"
+            self.error = f"Contours = {len(bounds)}"
             return False
         self.rank_bounds = bounds[0]
         self.suit_bounds = bounds[1]
         self.rank_image = cv2.resize(rank, (WIDTH, RANK_HEIGHT))
         self.suit_image = cv2.resize(suit, (WIDTH, SUIT_HEIGHT))
         if self.debug:
-           cv2.imshow("Rank", self.rank_image)
-           cv2.imshow("Suit", self.suit_image)
-           cv2.waitKey(1)
+            cv2.imshow("Rank", self.rank_image)
+            cv2.imshow("Suit", self.suit_image)
+            cv2.waitKey(1)
         return True
 
     def match(self):
@@ -157,7 +176,7 @@ class Camera:
         best_suit_score = 10000
         best_rank_template = None
         best_suit_template = None
-        # Difference the query card rank image from each of the train rank images,
+        # Difference the query card rank image from each of the trained rank images,
         # and store the result with the least difference
         for template in self.rank_templates:
             diff_img = cv2.absdiff(self.rank_image, template.image)
@@ -181,9 +200,18 @@ class Camera:
         suit = "?"
         if best_suit_score < SUIT_DIFF_MAX:
             suit = best_suit_template.name
-        
+
         card = rank + suit
-        cv2.putText(self.source, card, (20, 30),cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2, cv2.LINE_AA)
+        cv2.putText(
+            self.source,
+            card,
+            (20, 30),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            1,
+            (0, 0, 255),
+            2,
+            cv2.LINE_AA,
+        )
         cv2.imshow("Contours", self.source)
         cv2.waitKey(1)
         if self.debug_templates:
@@ -191,12 +219,12 @@ class Camera:
             self.debug_templates(self.rank_templates)
             self.debug_templates(self.suit_templates)
         return card
-    
+
     @staticmethod
     def debug_templates(templates):
         sorted_templates = sorted(templates, key=lambda x: x.score)
         for t in sorted_templates:
-            print(t.name, ":", int(t.score/100), " ", end="", sep="")
+            print(t.name, ":", int(t.score / 100), " ", end="", sep="")
         print()
 
     @staticmethod
@@ -208,61 +236,68 @@ class Camera:
         if self.picam2:
             self.picam2.stop()
 
-def camera_calibrate():
-    from mechanics import feed, motor_on, motor_off
-    # Determine best threshold the threshold
-    lamp_on()  
-    time.sleep(2)
-    camera.debug=True
+
+def set_threshold():
+    # from mechanics import feed, motor_on, motor_off
+
+    # Determine best threshold
+    if PI:
+        lamp_on()
+        time.sleep(2)
+    camera = Camera()
+    camera.debug = True
     t = THRESHOLD
     while True:
         camera.capture()
         camera.threshold = t
         camera.read_card()
-        cv2.imshow("Input", camera.image)        
-        motor_off()
+        cv2.imshow("Input", camera.image)
+        # motor_off()
         key = cv2.waitKey()
-        if key == ord("f"):
-            motor_on()
-            time.sleep(0.5)
-            feed()
-            motor_off()
+        # if key == ord("f"):
+        #     motor_on()
+        #     time.sleep(0.5)
+        #     feed()
+        #     motor_off()
         if key == ord("q"):
             return
         elif key == ord("+"):
-            t += 10
+            t += 5
         elif key == ord("-"):
-            t -= 10
+            t -= 5
         print("Theshold:", t)
 
 
 def camera_test():
-    lamp_on()  
-    time.sleep(2)
-    camera.debug=True
+    if PI:
+        lamp_on()
+        time.sleep(2)
+    camera.debug = True
     while True:
         camera.capture()
         cv2.imshow("Input", camera.image)
         if camera.read_card():
-            print(camera.match())          
+            print(camera.match())
             cv2.imshow("Rank", camera.rank_image)
             cv2.imshow("Suit", camera.suit_image)
         else:
             print("No card")
         key = cv2.waitKey()
         if key == ord("q"):
-            lamp_off()
+            if PI:
+                lamp_off()
             return
 
 
-
 def camera_image():
-    lamp_on()
+    # lamp_on()
     while True:
         camera.capture()
         cv2.imshow("Image", camera.image)
-        cv2.rectangle(camera.image, (X1, Y1),(X2, Y2), (255,0,0),2)
-        cv2.waitKey()
-        
+        cv2.rectangle(camera.image, (X1, Y1), (X2, Y2), (255, 0, 0), 2)
+        cv2.waitKey(1)
 
-camera = Camera()
+
+if __name__ == "__main__":
+    camera = Camera(mock_source="red")
+    camera_test()

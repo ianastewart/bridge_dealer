@@ -1,8 +1,13 @@
 import cv2
 import os
 import glob
-from camera import Camera
-from mechanics import reset, motor_on, feed_card, lamp_on
+from time import sleep
+from camera import Camera, PI
+
+if PI:
+    from mechanics import reset, motor_on, feed_card, lamp_on
+else:
+    from mock_mechanics import reset, motor_on, feed_card, lamp_on
 
 
 def feed_pack(count=13):
@@ -49,5 +54,28 @@ def calibrate():
     reset()
 
 
+def test_match():
+    cam = Camera(mock_source="green2")
+    cam.debug = True
+    number = 0
+    while number < 52:
+        number += 1
+        cam.capture()
+        success = cam.read_card()
+        if success:
+            card = cam.match()
+            print(number, card)
+        else:
+            print(number, cam.error)
+            break
+        sleep(0.3)
+
+    # iter = cam.base_path.joinpath("rawimages", inputs).iterdir()
+    # while True:
+    #     image=cv2.imread(iter.__next__(), cv2.IMREAD_COLOR_BGR)
+    #     cv2.imshow("Image", image)
+    #     cv2.waitKey(1)
+
+
 cam = Camera()
-calibrate()
+test_match()
