@@ -13,8 +13,8 @@ except ImportError:
 
 
 # Crop positions to extract top left of card
-X1 = 250#200
-X2 = 530 #380
+X1 = 330 #200
+X2 = 510 # 530 #380
 Y1 = 50 #20
 Y2 = 450 #390
 
@@ -29,7 +29,7 @@ RANK_HEIGHT = 190
 
 RANK_DIFF_MAX = 7000
 SUIT_DIFF_MAX = 4000
-IMG_PATH = os.path.dirname(os.path.abspath(__file__)) + "/images/"
+IMG_PATH = os.path.dirname(os.path.abspath(__file__)) + "/merged/"
 
 
 @dataclass
@@ -115,7 +115,7 @@ class Camera:
                 )
             cv2.imshow("Contours", self.source)
             cv2.imshow("Binary", self.binary)
-            cv2.waitKey(1)       
+            cv2.waitKey(1)
         if len(bounds) >= 2:
             rank = self.crop_bounds(self.binary, bounds[0])
             suit = self.crop_bounds(self.binary, bounds[1])
@@ -181,11 +181,12 @@ class Camera:
         suit = "?"
         if best_suit_score < SUIT_DIFF_MAX:
             suit = best_suit_template.name
-        
+
         card = rank + suit
-        cv2.putText(self.source, card, (20, 30),cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2, cv2.LINE_AA)
-        cv2.imshow("Contours", self.source)
-        cv2.waitKey(1)
+        if self.debug:
+            cv2.putText(self.source, card, (20, 30),cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2, cv2.LINE_AA)
+            cv2.imshow("Contours", self.source)
+            cv2.waitKey(1)
         if self.debug_templates:
             print(f"Card = {card}")
             self.debug_templates(self.rank_templates)
@@ -210,7 +211,7 @@ class Camera:
 
 def camera_calibrate():
     from mechanics import feed, motor_on, motor_off
-    # Determine best threshold the threshold
+    # Determine best threshold
     lamp_on()  
     time.sleep(2)
     camera.debug=True
@@ -219,7 +220,7 @@ def camera_calibrate():
         camera.capture()
         camera.threshold = t
         camera.read_card()
-        cv2.imshow("Input", camera.image)        
+        cv2.imshow("Input", camera.image)
         motor_off()
         key = cv2.waitKey()
         if key == ord("f"):
@@ -237,7 +238,7 @@ def camera_calibrate():
 
 
 def camera_test():
-    lamp_on()  
+    lamp_on()
     time.sleep(2)
     camera.debug=True
     while True:
@@ -263,6 +264,6 @@ def camera_image():
         cv2.imshow("Image", camera.image)
         cv2.rectangle(camera.image, (X1, Y1),(X2, Y2), (255,0,0),2)
         cv2.waitKey()
-        
 
 camera = Camera()
+camera_test()
