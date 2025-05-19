@@ -89,10 +89,11 @@ def capture_raw():
         if clear in ["yes", "y"]:
             clear_dir("img_path")
     reset()
-    motor_on()
     lamp_on()
-    time.sleep(1)
     camera.capture()
+    time.sleep(2)
+    camera.capture()
+    motor_on()
     for r in range(52):
         #feed_reset()
         #camera.capture()

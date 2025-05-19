@@ -15,10 +15,10 @@ except ImportError:
 
 
 # Crop positions to extract top left of card
-X1 = 250  # 200
-X2 = 530  # 380
-Y1 = 50  # 20
-Y2 = 450  # 390
+X1 = 330 #200
+X2 = 510 # 530 #380
+Y1 = 50 #20
+Y2 = 450 #390
 
 THRESHOLD = 135
 
@@ -31,7 +31,7 @@ RANK_HEIGHT = 190
 
 RANK_DIFF_MAX = 7000
 SUIT_DIFF_MAX = 4000
-IMG_PATH = os.path.dirname(os.path.abspath(__file__)) + "/images/"
+IMG_PATH = os.path.dirname(os.path.abspath(__file__)) + "/merged/"
 
 
 @dataclass
@@ -236,35 +236,31 @@ class Camera:
         if self.picam2:
             self.picam2.stop()
 
-
-def set_threshold():
-    # from mechanics import feed, motor_on, motor_off
-
+def camera_calibrate():
+    from mechanics import feed, motor_on, motor_off
     # Determine best threshold
-    if PI:
-        lamp_on()
-        time.sleep(2)
-    camera = Camera()
-    camera.debug = True
+    lamp_on()  
+    time.sleep(2)
+    camera.debug=True
     t = THRESHOLD
     while True:
         camera.capture()
         camera.threshold = t
         camera.read_card()
         cv2.imshow("Input", camera.image)
-        # motor_off()
+        motor_off()
         key = cv2.waitKey()
-        # if key == ord("f"):
-        #     motor_on()
-        #     time.sleep(0.5)
-        #     feed()
-        #     motor_off()
+        if key == ord("f"):
+            motor_on()
+            time.sleep(0.5)
+            feed()
+            motor_off()
         if key == ord("q"):
             return
         elif key == ord("+"):
-            t += 5
+            t += 10
         elif key == ord("-"):
-            t -= 5
+            t -= 10
         print("Theshold:", t)
 
 
@@ -289,6 +285,7 @@ def camera_test():
             return
 
 
+
 def camera_image():
     # lamp_on()
     while True:
@@ -301,3 +298,5 @@ def camera_image():
 if __name__ == "__main__":
     camera = Camera(mock_source="red")
     camera_test()
+else:
+    camera = Camera()
