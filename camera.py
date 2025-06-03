@@ -15,10 +15,10 @@ except ImportError:
 
 
 # Crop positions to extract top left of card
-X1 = 330 #200
-X2 = 510 # 530 #380
-Y1 = 50 #20
-Y2 = 450 #390
+X1 = 330  # 200
+X2 = 510  # 530 #380
+Y1 = 50  # 20
+Y2 = 450  # 390
 
 THRESHOLD = 135
 
@@ -58,7 +58,7 @@ class Camera:
     iter = None
     count = 0
 
-    def __init__(self, mock_source="green", template="merged"):
+    def __init__(self, mock_source="green2", template="merged"):
         self.base_path = Path(__file__).parent
         if not PI:
             self.sim_folder = self.base_path.joinpath("rawimages", mock_source)
@@ -72,11 +72,11 @@ class Camera:
 
         for rank in "23456789TJQKA":
             file = self.base_path.joinpath(template, f"{rank}.png")
-            image = cv2.imread(file, cv2.IMREAD_GRAYSCALE)
+            image = cv2.imread(str(file), cv2.IMREAD_GRAYSCALE)
             self.rank_templates.append(Template(image=image, name=rank, score=0))
         for suit in "CDHS":
             file = self.base_path.joinpath(template, f"{suit}.png")
-            image = cv2.imread(file, cv2.IMREAD_GRAYSCALE)
+            image = cv2.imread(str(file), cv2.IMREAD_GRAYSCALE)
             self.suit_templates.append(Template(image=image, name=suit, score=0))
 
     def capture(self):
@@ -236,12 +236,14 @@ class Camera:
         if self.picam2:
             self.picam2.stop()
 
+
 def camera_calibrate():
     from mechanics import feed, motor_on, motor_off
+
     # Determine best threshold
-    lamp_on()  
+    lamp_on()
     time.sleep(2)
-    camera.debug=True
+    camera.debug = True
     t = THRESHOLD
     while True:
         camera.capture()
@@ -285,7 +287,6 @@ def camera_test():
             return
 
 
-
 def camera_image():
     # lamp_on()
     while True:
@@ -300,3 +301,66 @@ if __name__ == "__main__":
     camera_test()
 else:
     camera = Camera()
+
+
+def capture_raw():
+    name = input("Folder name: ")
+    img_path = os.path.dirname(os.path.abspath(__file__)) + f"/{name}/"
+    if not os.path.exists(img_path):
+        os.makedirs(img_path)
+    if os.listdir(img_path):
+        clear = input("Delete existing files? ").lower()
+        if clear in ["yes", "y"]:
+            clear_dir("img_path")
+
+    if PI:
+        reset()
+        lamp_on()
+        camera.capture()
+        time.sleep(2)
+        motor_on()
+
+    # Initialize camera capture
+    try:
+        camera.capture()
+    except StopIteration:
+        print("No images available in the source directory")
+        return
+
+    for r in range(52):
+        try:
+            file = f"{img_path}{r}.png"
+            print(file)
+            if camera.image is None:
+                print(f"No valid image for card {r}")
+                continue
+
+            cv2.imshow("Image", camera.image)
+            cv2.waitKey(1)
+            cv2.imwrite(file, camera.image)
+
+            if r < 13:
+                dest = "S"
+            elif r < 26:
+                dest = "W"
+            elif r < 39:
+                dest = "E"
+            else:
+                dest = "N"
+
+            if PI:
+                # feed card and load next camera image
+                feed_card(dest, camera=camera)
+            else:
+                # just load next image
+                try:
+                    camera.next()
+                except StopIteration:
+                    print(f"Processed {r+1} cards. No more images available.")
+                    break
+        except Exception as e:
+            print(f"Error processing card {r}: {str(e)}")
+            break
+
+    if PI:
+        reset()

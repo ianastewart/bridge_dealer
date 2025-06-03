@@ -2,11 +2,15 @@ import cv2
 import os
 import glob
 import time
-from camera import camera
-from mechanics import reset, motor_on, lamp_on, feed_card, feed_reset
+from camera import camera, PI, Camera
+
+if PI:
+    from mechanics import reset, motor_on, lamp_on, feed_card, feed_reset
+else:
+    from mock_mechanics import reset, motor_on, lamp_on, feed_card, feed_reset
 
 
-def calibrate(name="images2"):
+def read_templates(name="images2"):
     """
     Reads 4 cards with suits in sequence C D H S to South slot
     Then 13 cards in order of rank 2 to A to West slot
@@ -31,7 +35,7 @@ def calibrate(name="images2"):
             cv2.imwrite(file, camera.suit_image)
             feed_card("S")
         else:
-            print("No suit image")
+            print(f"No suit image in {s}.png")
     for r in rank:
         feed_reset()
         camera.capture()
@@ -40,7 +44,7 @@ def calibrate(name="images2"):
             cv2.imwrite(file, camera.rank_image)
             feed_card("W")
         else:
-            print("No rank image")
+            print("No rank image in {r}.png")
     time.sleep(1)
     reset()
 
@@ -56,29 +60,18 @@ def clear_dir(name="images"):
 
 
 def camera_test():
-    camera.debug = True
-    reset()
-    lamp_on()
-    if camera.is_ready():
-        while True:
-            camera.capture()
-            camera.read_card()
+    if PI:
+        camera.debug = True
+        reset()
+        lamp_on()
+        if camera.is_ready():
+            while True:
+                camera.capture()
+                camera.read_card()
+    else:
+        print("Function not available")
 
 
-#     #         cv2.imshow("Input", cam.image)
-#             cv2.imshow("Rank", cam.rank_image)
-#             cv2.imshow("Suit", cam.suit_image)
-#             k = cv2.waitKey(1)
-# #         if k == ord("q"):
-#             break
-#         if k == ord("f"):
-#             feed_card("N", cam)
-#     reset()
-
-images = []
-
-
-# calibrate()
 def capture_raw():
     name = input("Folder name: ")
     img_path = os.path.dirname(os.path.abspath(__file__)) + f"/{name}/"
@@ -88,15 +81,14 @@ def capture_raw():
         clear = input("Delete existing files? ").lower()
         if clear in ["yes", "y"]:
             clear_dir("img_path")
-    reset()
-    lamp_on()
+    if PI:
+        reset()
+        lamp_on()
+        camera.capture()
+        time.sleep(2)
+        motor_on()
     camera.capture()
-    time.sleep(2)
-    camera.capture()
-    motor_on()
     for r in range(52):
-        #feed_reset()
-        #camera.capture()
         file = f"{img_path}{r}.png"
         print(file)
         cv2.imshow("Image", camera.image)
@@ -110,17 +102,43 @@ def capture_raw():
             dest = "E"
         else:
             dest = "N"
-        feed_card(dest, camera=camera)
-        
-    reset()
+        if r == 51:
+            break
+        if PI:
+            # feed card and load next camera image
+            feed_card(dest, camera=camera)
+        else:
+            # just load next image
+            camera.next()
+    if PI:
+        reset()
 
 
 def show():
-    img_path = os.path.dirname(os.path.abspath(__file__)) + f"/raw/"
+    img_path = os.path.dirname(os.path.abspath(__file__)) + "/raw/"
     while True:
         name = input("Name: ")
         image = cv2.imread(f"{img_path}{name}.png", cv2.IMREAD_GRAYSCALE)
         cv2.imshow(name, image)
         cv2.waitKey(1)
 
-capture_raw()
+
+if __name__ == "__main__":
+    print("0 = Capture 52 raw images to folder")
+    print("1 = Read suit and rank for templates")
+    print("2 = Show images in folder")
+    print("3 = Test camera (PI only)")
+    sel = input("Function: ")
+    match sel:
+        case "0":
+            capture_raw()
+        case "1":
+            read_templates()
+        case "2":
+            show()
+        case "3":
+            camera_test()
+        case _:
+            print("Invalid selection")
+else:
+    camera = Camera()
