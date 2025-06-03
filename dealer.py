@@ -91,6 +91,7 @@ class Dealer:
                     reset()
                     self.print_dealt()
                     return False
+            time.sleep(0.5)
             reset()
             self.print_dealt()
             return True

@@ -179,7 +179,7 @@ def feed(wait=1, camera=None):
             return False
     # print(time.time() - start)
     # time.sleep(delay)
-    # print(t1, t2)
+    print(t1, t2)
     new_time = time.time() + wait
     if new_time > ready_time:
         ready_time = new_time

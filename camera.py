@@ -299,8 +299,7 @@ def camera_image():
 if __name__ == "__main__":
     camera = Camera(mock_source="red")
     camera_test()
-else:
-    camera = Camera()
+
 
 
 def capture_raw():
