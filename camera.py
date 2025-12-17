@@ -15,7 +15,7 @@ except ImportError:
 
 
 # Crop positions to extract top left of card
-X1 = 330  # 200
+X1 = 315  # 200
 X2 = 510  # 530 #380
 Y1 = 50  # 20
 Y2 = 450  # 390
