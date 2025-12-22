@@ -3,5 +3,9 @@
   <component name="Black">
     <option name="sdkName" value="Python 3.11 (bridge_dealer)" />
   </component>
-  <component name="ProjectRootManager" version="2" project-jdk-name="Python 3.13 (bridge_dealer)" project-jdk-type="Python SDK" />
+  <component name="ProjectRootManager" version="2" project-jdk-name="Remote 3.11 (sftp://ian@192.168.0.23:22/home/ian/Projects/bridge_dealer/.venv/bin/python)" project-jdk-type="Python SDK" />
+  <component name="RuffConfiguration">
+    <option name="enabled" value="true" />
+    <option name="executableDiscoveryMode" value="PATH" />
+  </component>
 </project>

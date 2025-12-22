@@ -20,7 +20,7 @@ BOARD_SWITCH = 36
 # Time in seconds after card detected as fed
 FEED_PULSE = 0.01
 WAIT_BASE = 0.0
-WAIT_INCREMENT = 0.1
+WAIT_INCREMENT = 0.2
 FEED_RETRIES = 5
 # Global vars
 ready_time = 0
@@ -178,11 +178,13 @@ def feed(wait=1, camera=None):
         if t2 == 50:
             return False
     # print(time.time() - start)
-    # time.sleep(delay)
+    time.sleep(.1) #added
     print(t1, t2)
     new_time = time.time() + wait
+    print("new_time:", new_time)
     if new_time > ready_time:
         ready_time = new_time
+        print("ready_time", ready_time)
     return True
 
 

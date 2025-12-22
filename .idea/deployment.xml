@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project version="4">
-  <component name="PublishConfigData" autoUpload="Always" serverName="ian@192.168.0.23:22 password" remoteFilesAllowedToDisappearOnAutoupload="false">
+  <component name="PublishConfigData" autoUpload="Always" serverName="ian@192.168.0.23:22 password (3)" remoteFilesAllowedToDisappearOnAutoupload="false">
     <serverData>
       <paths name="Pi">
         <serverdata>
@@ -9,10 +9,31 @@
           </mappings>
         </serverdata>
       </paths>
+      <paths name="PiDealer">
+        <serverdata>
+          <mappings>
+            <mapping deploy="/Projects/bridge_dealer" local="$PROJECT_DIR$" />
+          </mappings>
+        </serverdata>
+      </paths>
       <paths name="ian@192.168.0.23:22 password">
         <serverdata>
           <mappings>
             <mapping deploy="/tmp/pycharm_project_876" local="$PROJECT_DIR$" />
+          </mappings>
+        </serverdata>
+      </paths>
+      <paths name="ian@192.168.0.23:22 password (2)">
+        <serverdata>
+          <mappings>
+            <mapping deploy="/tmp/pycharm_project_221" local="$PROJECT_DIR$" />
+          </mappings>
+        </serverdata>
+      </paths>
+      <paths name="ian@192.168.0.23:22 password (3)">
+        <serverdata>
+          <mappings>
+            <mapping deploy="/Projects/bridge_dealer" local="$PROJECT_DIR$" />
           </mappings>
         </serverdata>
       </paths>

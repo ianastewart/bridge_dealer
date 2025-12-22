@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project version="4">
   <component name="RuffConfigService">
-    <option name="globalRuffExecutablePath" value="C:\Users\is\AppData\Local\Programs\Python\Python39\Scripts\ruff.exe" />
+    <option name="globalRuffExecutablePath" value="c:\users\is\.local\bin\ruff.exe" />
     <option name="runRuffOnSave" value="true" />
     <option name="useRuffFormat" value="true" />
   </component>

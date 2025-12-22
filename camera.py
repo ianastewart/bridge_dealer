@@ -1,10 +1,13 @@
 import os
 import cv2
+from cv2 import imread, imwrite, imshow, waitKey, IMREAD_GRAYSCALE, cvtColor, COLOR_BGR2GRAY, threshold, \
+    THRESH_BINARY_INV, findContours, RETR_EXTERNAL, CHAIN_APPROX_SIMPLE, rectangle
 import numpy as np
 import time
 from dataclasses import dataclass
 from pathlib import Path
 
+print("Camera test")
 PI = True
 try:
     from picamera2 import Picamera2
@@ -12,7 +15,6 @@ try:
 except ImportError:
     PI = False
     print("No picamera2")
-
 
 # Crop positions to extract top left of card
 X1 = 315  # 200
@@ -22,12 +24,10 @@ Y2 = 450  # 390
 
 THRESHOLD = 135
 
-
 # Dimensions of binary masks
 WIDTH = 110
 SUIT_HEIGHT = 130
 RANK_HEIGHT = 190
-
 
 RANK_DIFF_MAX = 7000
 SUIT_DIFF_MAX = 4000
@@ -50,7 +50,7 @@ class Camera:
     rank_image = None
     rank_templates = []
     suit_templates = []
-    debug = True
+    debug = False
     debug_templates = False
     error = ""
     base_path = None
@@ -78,6 +78,7 @@ class Camera:
             file = self.base_path.joinpath(template, f"{suit}.png")
             image = cv2.imread(str(file), cv2.IMREAD_GRAYSCALE)
             self.suit_templates.append(Template(image=image, name=suit, score=0))
+        print("Camera initialized")
 
     def capture(self):
         if PI:
@@ -86,6 +87,7 @@ class Camera:
             self.next()
         self.suit_image = None
         self.rank_image = None
+        print("Capture image")
 
     def next(self):
         file = self.iter.__next__()
@@ -149,8 +151,8 @@ class Camera:
                     # and extend the largest boundary to include it
                     if abs(b[1] - bounds[0][1]) < 15 and abs(b[3] - bounds[0][3]) < 15:
                         rank = self.binary[
-                            bounds[0][1] : bounds[0][1] + bounds[0][3],
-                            b[0] + 5 : bounds[0][0] + bounds[0][2],
+                            bounds[0][1]: bounds[0][1] + bounds[0][3],
+                            b[0] + 5: bounds[0][0] + bounds[0][2],
                         ]
                         break
         else:
@@ -158,8 +160,13 @@ class Camera:
             return False
         self.rank_bounds = bounds[0]
         self.suit_bounds = bounds[1]
-        self.rank_image = cv2.resize(rank, (WIDTH, RANK_HEIGHT))
-        self.suit_image = cv2.resize(suit, (WIDTH, SUIT_HEIGHT))
+        print(self.rank_bounds, self.suit_bounds)
+        try:
+            self.rank_image = cv2.resize(rank, (WIDTH, RANK_HEIGHT))
+            self.suit_image = cv2.resize(suit, (WIDTH, SUIT_HEIGHT))
+        except Exception as e:
+            print(e)
+            return False
         if self.debug:
             cv2.imshow("Rank", self.rank_image)
             cv2.imshow("Suit", self.suit_image)
@@ -212,8 +219,9 @@ class Camera:
             2,
             cv2.LINE_AA,
         )
-        cv2.imshow("Contours", self.source)
-        cv2.waitKey(1)
+        if self.debug:
+            cv2.imshow("Contours", self.source)
+            cv2.waitKey(1)
         if self.debug_templates:
             print(f"Card = {card}")
             self.debug_templates(self.rank_templates)
@@ -230,7 +238,7 @@ class Camera:
     @staticmethod
     def crop_bounds(image, b):
         # crop image to boundary
-        return image[b[1] : b[1] + b[3], b[0] : b[0] + b[2]]
+        return image[b[1]: b[1] + b[3], b[0]: b[0] + b[2]]
 
     def stop(self):
         if self.picam2:
@@ -271,20 +279,25 @@ def camera_test():
         lamp_on()
         time.sleep(2)
     camera.debug = True
+    cv2.namedWindow('Input', cv2.WINDOW_NORMAL)
+    cv2.resizeWindow('Input', 500, 500)  # Set window size to 800x600
     while True:
         camera.capture()
-        cv2.imshow("Input", camera.image)
+        if camera.debug:
+            cv2.imshow("Input", camera.image)
         if camera.read_card():
             print(camera.match())
-            cv2.imshow("Rank", camera.rank_image)
-            cv2.imshow("Suit", camera.suit_image)
+            if camera.debug:
+                cv2.imshow("Rank", camera.rank_image)
+                cv2.imshow("Suit", camera.suit_image)
         else:
             print("No card")
-        key = cv2.waitKey()
-        if key == ord("q"):
-            if PI:
-                lamp_off()
-            return
+        if camera.debug:
+            key = cv2.waitKey()
+            if key == ord("q"):
+                if PI:
+                    lamp_off()
+                return
 
 
 def camera_image():
@@ -299,7 +312,6 @@ def camera_image():
 if __name__ == "__main__":
     camera = Camera(mock_source="red")
     camera_test()
-
 
 
 def capture_raw():
@@ -355,7 +367,7 @@ def capture_raw():
                 try:
                     camera.next()
                 except StopIteration:
-                    print(f"Processed {r+1} cards. No more images available.")
+                    print(f"Processed {r + 1} cards. No more images available.")
                     break
         except Exception as e:
             print(f"Error processing card {r}: {str(e)}")

@@ -1,6 +1,11 @@
+import sys
+print("Python:", sys.executable)
+print("Version:", sys.version)
+print("SysPath:\n", "\n".join(sys.path))
 from pbn_reader import create_packs
 from dealer import Dealer
 from pathlib import Path
+import sys
 
 try:
     import RPi.GPIO as GPIO
@@ -13,6 +18,7 @@ def main_loop():
     dealer = Dealer()
     keyed = ""
     while True:
+        number = 1
         valid = False
         while not valid:
             keyed = input("Enter board number or q: ")
@@ -39,7 +45,7 @@ def main_loop():
                 reset()
 
 
-pbn_name = "251217.pbn"
+pbn_name = "251221.pbn"
 pbn_path = Path(f"pbns/{pbn_name}")
 packs = create_packs(pbn_path)
 print(f"{pbn_name} contains {len(packs)} boards")

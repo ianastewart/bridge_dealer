@@ -47,7 +47,7 @@ class Dealer:
         self.dealt = {}
         self.suiter = {"C": "S", "D": "E", "H": "W", "S": "N"}
         self.camera = Camera()
-        self.camera.debug = True
+        self.camera.debug = False
 
     def reset(self):
         reset()
@@ -150,10 +150,10 @@ class Dealer:
             print(f"{key}: " + " ".join(self.dealt[key]))
 
     def debug(self):
-        cv2.imshow("Rank", self.camera.rank_image)
-        cv2.imshow("Suit", self.camera.suit_image)
-        cv2.waitKey(5)
-
+        # cv2.imshow("Rank", self.camera.rank_image)
+        # cv2.imshow("Suit", self.camera.suit_image)
+        # cv2.waitKey(5)
+        pass
 
 def suits():
     # pack = suit_sorter()
