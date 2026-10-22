@@ -290,7 +290,14 @@ class App(tk.Tk):
             self.status.config(text="Stopped")
         else:
             self.status.config(text=f"Board {number} failed")
+        # The spinbox ignores set() while disabled, so enable the controls first
         self.update_buttons()
+        if ok:
+            if number < len(self.packs):
+                self.board_spin.set(number + 1)
+            else:
+                self.status.config(text="All boards dealt")
+                messagebox.showinfo("Bridge dealer", "All boards dealt")
 
     def on_close(self):
         if self.dealing():
