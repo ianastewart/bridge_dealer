@@ -24,10 +24,10 @@ def motor_off():
     state()
 
 
-def feed_card(slot="N", camera=None):
+def feed_card(slot="N", camera=None, last_slot=None, debug=False):
     if camera:
         camera.next()
-    return True
+    return slot
 
 
 def feed_reset(duration=0.1):

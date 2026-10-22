@@ -185,7 +185,7 @@ class Camera:
                 cv2.waitKey(1)
                 return True
             except Exception as e:
-                printf(" Error in debug: {e}")
+                print(f"Error in debug: {e}")
                 return False
         return True
 
@@ -240,13 +240,12 @@ class Camera:
             cv2.waitKey(1)
         if self.debug_templates:
             print(f"Card = {card}")
-            self.debug_templates(self.rank_templates, "Rank")
-            self.debug_templates(self.suit_templates, "Suit")
-            print
+            self.print_confidence(self.rank_templates, "Rank")
+            self.print_confidence(self.suit_templates, "Suit")
         return card
 
     @staticmethod
-    def debug_templates(templates, desc):
+    def print_confidence(templates, desc):
         sorted_templates = sorted(templates, key=lambda x: x.score)
         s0 = int(sorted_templates[0].score/100)
         s1 = int(sorted_templates[1].score/100)

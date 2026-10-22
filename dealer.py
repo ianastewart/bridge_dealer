@@ -51,7 +51,7 @@ class Dealer:
         self.debug = debug
 
     def reset(self):
-        last_slot = None
+        self.last_slot = None
         reset()
 
     def is_ready(self):
@@ -88,6 +88,7 @@ class Dealer:
             self.pack = pack
         for key in DEALT_KEYS:
             self.dealt[key] = []
+        self.last_slot = None
         if self.is_ready():
             for r in range(52):
                 print(
@@ -133,14 +134,14 @@ class Dealer:
         print(self.card, slot)
         if self.card in self.dealt["All"]:
             print(f"Card {self.card} already dealt")
-            self.debug()
+            self.show_debug_images()
             return False
         self.last_slot = feed_card(slot, camera=self.camera, last_slot=self.last_slot)
         if self.last_slot is not None:
             self.dealt[slot].append(self.card)
             self.dealt["All"].append(self.card)
             return True
-        print("Feed failure {self.card}")
+        print(f"Feed failure {self.card}")
         return False
 
     def next_card(self):
@@ -159,7 +160,7 @@ class Dealer:
         for key in ["All", "N", "E", "S", "W"]:
             print(f"{key}: " + " ".join(self.dealt[key]))
 
-    def debug(self):
+    def show_debug_images(self):
         try:
             cv2.imshow("Rank", self.camera.rank_image)
             cv2.imshow("Suit", self.camera.suit_image)
