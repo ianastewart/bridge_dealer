@@ -3,6 +3,8 @@ Tkinter front end for the dealer. Sketch - ui.py is the existing console version
 
 Run with:  python gui.py
 
+The window is shown first. OpenCV, the camera and the dealer are slow to load on
+the Pi, so they are loaded in a thread afterwards (see load_backend).
 The dealing loop blocks for a minute or more, so it runs in a worker thread
 and reports progress back to the window through a queue.
 """
@@ -13,12 +15,9 @@ import threading
 import tkinter as tk
 from pathlib import Path
 from tkinter import filedialog, messagebox, ttk
+from types import SimpleNamespace
 
-import cv2
-
-from dealer import Dealer, PI, RANKS, feed_reset, reset
-from pbn_reader import create_packs
-
+RANKS = "23456789TJQKA"
 SUIT_SYMBOLS = {"S": "♠", "H": "♥", "D": "♦", "C": "♣"}
 SUIT_ORDER = "SHDC"
 RED = "#c0392b"
@@ -29,50 +28,28 @@ POLL_MS = 100
 PREVIEW_EVERY = 3  # refresh the preview every n polls
 
 
-class GuiDealer(Dealer):
+def load_backend(events):
     """
-    Dealer that reports progress on a queue, can be stopped, and never prompts
-    on the console or opens OpenCV windows (neither works from a worker thread).
+    Slow imports and hardware start-up. Runs in a thread so the window shows first.
+    Puts ("ready", backend) or ("load_failed", message) on the queue.
     """
+    try:
+        import cv2
+        from gui_dealer import GuiDealer, reset
+        from pbn_reader import create_packs
 
-    def __init__(self, events):
-        super().__init__()
-        self.events = events
-        self.stop_event = threading.Event()
-        self.camera.show_image = lambda: None
-        # Last card image with contours and decoded card drawn on it
-        self.card_image = None
-
-    def is_ready(self):
-        if not PI:
-            return True
-        reset()
-        feed_reset()
-        self.camera.capture()
-        return self.camera.read_card()
-
-    def deal_card(self):
-        if self.stop_event.is_set():
-            print("Stopped")
-            return False
-        if super().deal_card():
-            self.events.put(
-                ("card", self.card, self.last_slot, len(self.dealt["All"]))
-            )
-            return True
-        return False
-
-    def next_card(self):
-        found = super().next_card()
-        # camera.source is outlined by read_card and labelled by match. Copy it
-        # because the worker thread draws on it again for the next card.
-        source = getattr(self.camera, "source", None)
-        if source is not None:
-            self.card_image = source.copy()
-        return found
-
-    def show_debug_images(self):
-        pass
+        dealer = GuiDealer(events)
+    except Exception as e:
+        events.put(("load_failed", str(e)))
+        return
+    events.put(
+        (
+            "ready",
+            SimpleNamespace(
+                cv2=cv2, dealer=dealer, reset=reset, create_packs=create_packs
+            ),
+        )
+    )
 
 
 class HandPanel(tk.LabelFrame):
@@ -148,7 +125,8 @@ class App(tk.Tk):
         self.complete = False  # True when the hands shown are a finished board
         self.poll_count = 0
         self.events = queue.Queue()
-        self.dealer = GuiDealer(self.events)
+        self.backend = None  # set when load_backend has finished
+        self.dealer = None
 
         # Controls
         controls = ttk.Frame(self, padding=8)
@@ -195,14 +173,20 @@ class App(tk.Tk):
         # Progress
         bottom = ttk.Frame(self, padding=8)
         bottom.pack(fill="x")
-        self.progress = ttk.Progressbar(bottom, maximum=52)
+        self.progress = ttk.Progressbar(bottom, maximum=52, mode="indeterminate")
         self.progress.pack(fill="x")
-        self.status = ttk.Label(bottom, text="Select a PBN file")
+        self.status = ttk.Label(bottom, text="Starting dealer...")
         self.status.pack(anchor="w", pady=(4, 0))
 
         self.protocol("WM_DELETE_WINDOW", self.on_close)
         self.update_buttons()
         self.after(POLL_MS, self.poll)
+        # Let the window draw before the slow imports start
+        self.after(100, self.start_loading)
+
+    def start_loading(self):
+        self.progress.start(15)
+        threading.Thread(target=load_backend, args=(self.events,), daemon=True).start()
 
     # Helpers
     def dealing(self):
@@ -211,7 +195,7 @@ class App(tk.Tk):
     def update_buttons(self):
         busy = self.dealing()
         state = "disabled" if busy else "normal"
-        self.open_button.config(state=state)
+        self.open_button.config(state="disabled" if self.dealer is None else state)
         self.board_spin.config(state=state)
         self.deal_button.config(state="normal" if not busy and self.packs else "disabled")
         self.stop_button.config(state="normal" if busy else "disabled")
@@ -220,14 +204,15 @@ class App(tk.Tk):
     def poll(self):
         """Runs every POLL_MS in the GUI thread"""
         self.drain_events()
-        try:
-            present = self.dealer.board_present()
-        except Exception:
-            present = False
-        self.board_label.config(text="Board in place" if present else "No board")
-        self.poll_count += 1
-        if self.poll_count % PREVIEW_EVERY == 0:
-            self.update_preview()
+        if self.dealer is not None:
+            try:
+                present = self.dealer.board_present()
+            except Exception:
+                present = False
+            self.board_label.config(text="Board in place" if present else "No board")
+            self.poll_count += 1
+            if self.poll_count % PREVIEW_EVERY == 0:
+                self.update_preview()
         self.after(POLL_MS, self.poll)
 
     def clear_preview(self):
@@ -248,6 +233,7 @@ class App(tk.Tk):
         self.shown_image = image
         h, w = image.shape[:2]
         scale = min(PREVIEW_MAX[0] / w, PREVIEW_MAX[1] / h)
+        cv2 = self.backend.cv2
         small = cv2.resize(image, (int(w * scale), int(h * scale)))
         # Tk reads PNG data directly, so Pillow is not needed
         ok, png = cv2.imencode(".png", small)
@@ -267,6 +253,20 @@ class App(tk.Tk):
                 self.progress.config(value=count)
             elif event[0] == "finished":
                 self.on_finished(event[1])
+            elif event[0] == "ready":
+                self.on_ready(event[1])
+            elif event[0] == "load_failed":
+                self.progress.stop()
+                self.status.config(text=f"Could not start dealer: {event[1]}")
+                messagebox.showerror("Bridge dealer", f"Could not start dealer:\n{event[1]}")
+
+    def on_ready(self, backend):
+        self.backend = backend
+        self.dealer = backend.dealer
+        self.progress.stop()
+        self.progress.config(mode="determinate", value=0)
+        self.status.config(text="Select a PBN file")
+        self.update_buttons()
 
     # Actions
     def board_number(self):
@@ -283,7 +283,7 @@ class App(tk.Tk):
         )
         if not path:
             return
-        self.packs = create_packs(Path(path))
+        self.packs = self.backend.create_packs(Path(path))
         self.file_label.config(text=f"{Path(path).name}: {len(self.packs)} boards")
         self.board_spin.config(from_=1 if self.packs else 0, to=len(self.packs))
         self.board_spin.set(1 if self.packs else 0)
@@ -318,7 +318,7 @@ class App(tk.Tk):
             ok = bool(self.dealer.deal(pack))
         except Exception as e:
             print(f"Deal error: {e}")
-            reset()
+            self.backend.reset()
         self.events.put(("finished", ok))
 
     def toggle_reveal(self):
@@ -356,7 +356,8 @@ class App(tk.Tk):
         if self.dealing():
             self.dealer.stop_event.set()
             self.worker.join(5)
-        reset()
+        if self.backend is not None:
+            self.backend.reset()
         self.destroy()
 
 
