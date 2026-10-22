@@ -396,3 +396,6 @@ cache/
 /static/
 
 
+
+# JetBrains IDE settings
+.idea/
