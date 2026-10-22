@@ -1,59 +1,42 @@
 """
-PySide6 front end for the dealer. Sketch - ui.py is the existing console version.
+Tkinter front end for the dealer. Sketch - ui.py is the existing console version.
 
 Run with:  python gui.py
 
 The dealing loop blocks for a minute or more, so it runs in a worker thread
-and reports progress back to the window with Qt signals.
+and reports progress back to the window through a queue.
 """
 
-import sys
+import base64
+import queue
 import threading
+import tkinter as tk
 from pathlib import Path
+from tkinter import filedialog, messagebox, ttk
 
-from PySide6.QtCore import QObject, QThread, QTimer, Qt, Signal
-from PySide6.QtGui import QFont, QImage, QPixmap
-from PySide6.QtWidgets import (
-    QApplication,
-    QFileDialog,
-    QGridLayout,
-    QGroupBox,
-    QHBoxLayout,
-    QLabel,
-    QMainWindow,
-    QMessageBox,
-    QProgressBar,
-    QPushButton,
-    QSpinBox,
-    QVBoxLayout,
-    QWidget,
-)
+import cv2
 
-from dealer import Dealer, PI, RANKS, SUITS, feed_reset, reset
+from dealer import Dealer, PI, RANKS, feed_reset, reset
 from pbn_reader import create_packs
 
 SUIT_SYMBOLS = {"S": "♠", "H": "♥", "D": "♦", "C": "♣"}
 SUIT_ORDER = "SHDC"
 RED = "#c0392b"
 PBN_DIR = Path(__file__).parent / "pbns"
-
-
-class DealSignals(QObject):
-    """Created in the GUI thread, emitted from the worker thread"""
-
-    card_dealt = Signal(str, str, int)  # card, slot, number dealt so far
-    finished = Signal(bool)
+PREVIEW_SIZE = (320, 240)
+POLL_MS = 100
+PREVIEW_EVERY = 3  # refresh the preview every n polls
 
 
 class GuiDealer(Dealer):
     """
-    Dealer that reports progress by signal, can be stopped, and never prompts
+    Dealer that reports progress on a queue, can be stopped, and never prompts
     on the console or opens OpenCV windows (neither works from a worker thread).
     """
 
-    def __init__(self, signals):
+    def __init__(self, events):
         super().__init__()
-        self.signals = signals
+        self.events = events
         self.stop_event = threading.Event()
         self.camera.show_image = lambda: None
 
@@ -70,8 +53,8 @@ class GuiDealer(Dealer):
             print("Stopped")
             return False
         if super().deal_card():
-            self.signals.card_dealt.emit(
-                self.card, self.last_slot, len(self.dealt["All"])
+            self.events.put(
+                ("card", self.card, self.last_slot, len(self.dealt["All"]))
             )
             return True
         return False
@@ -80,36 +63,25 @@ class GuiDealer(Dealer):
         pass
 
 
-class DealWorker(QThread):
-    def __init__(self, dealer, pack):
-        super().__init__()
-        self.dealer = dealer
-        self.pack = pack
-
-    def run(self):
-        ok = False
-        try:
-            ok = bool(self.dealer.deal(self.pack))
-        except Exception as e:
-            print(f"Deal error: {e}")
-            reset()
-        self.dealer.signals.finished.emit(ok)
-
-
-class HandPanel(QGroupBox):
+class HandPanel(ttk.LabelFrame):
     """Shows the cards dealt to one hand, grouped by suit"""
 
     NAMES = {"N": "North", "E": "East", "S": "South", "W": "West"}
 
-    def __init__(self, direction):
-        super().__init__(self.NAMES[direction])
+    def __init__(self, parent, direction):
+        super().__init__(parent, text=self.NAMES[direction], padding=8)
         self.cards = []
-        self.label = QLabel()
-        self.label.setTextFormat(Qt.RichText)
-        self.label.setFont(QFont("Monospace", 14))
-        self.label.setMinimumWidth(240)
-        layout = QVBoxLayout(self)
-        layout.addWidget(self.label)
+        self.lines = {}
+        for suit in SUIT_ORDER:
+            label = tk.Label(
+                self,
+                font=("Courier", 14),
+                anchor="w",
+                width=24,
+                fg=RED if suit in "HD" else "black",
+            )
+            label.pack(anchor="w")
+            self.lines[suit] = label
         self.refresh()
 
     def clear(self):
@@ -121,177 +93,200 @@ class HandPanel(QGroupBox):
         self.refresh()
 
     def refresh(self):
-        lines = []
         for suit in SUIT_ORDER:
             ranks = sorted(
                 (c[0] for c in self.cards if c[1] == suit), key=RANKS.index, reverse=True
             )
-            colour = RED if suit in "HD" else "inherit"
             text = " ".join("10" if r == "T" else r for r in ranks) or "-"
-            lines.append(
-                f'<span style="color:{colour}">{SUIT_SYMBOLS[suit]}</span> {text}'
-            )
-        self.label.setText("<br>".join(lines))
+            self.lines[suit].config(text=f"{SUIT_SYMBOLS[suit]} {text}")
 
 
-class MainWindow(QMainWindow):
+class App(tk.Tk):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("Bridge dealer")
+        self.title("Bridge dealer")
         self.packs = []
         self.worker = None
-        self.signals = DealSignals()
-        self.signals.card_dealt.connect(self.on_card_dealt)
-        self.signals.finished.connect(self.on_finished)
-        self.dealer = GuiDealer(self.signals)
+        self.preview_image = None  # keep a reference or Tk drops the image
+        self.poll_count = 0
+        self.events = queue.Queue()
+        self.dealer = GuiDealer(self.events)
 
         # Controls
-        self.file_label = QLabel("No PBN file selected")
-        self.open_button = QPushButton("Open PBN...")
-        self.open_button.clicked.connect(self.open_pbn)
-        self.board_spin = QSpinBox()
-        self.board_spin.setRange(0, 0)
-        self.deal_button = QPushButton("Deal")
-        self.deal_button.clicked.connect(self.start_deal)
-        self.stop_button = QPushButton("Stop")
-        self.stop_button.clicked.connect(self.stop_deal)
-        self.board_label = QLabel()
-        controls = QHBoxLayout()
-        for w in (
-            self.open_button,
-            self.file_label,
-            QLabel("Board:"),
-            self.board_spin,
-            self.deal_button,
-            self.stop_button,
-        ):
-            controls.addWidget(w)
-        controls.addStretch()
-        controls.addWidget(self.board_label)
+        controls = ttk.Frame(self, padding=8)
+        controls.pack(fill="x")
+        self.open_button = ttk.Button(controls, text="Open PBN...", command=self.open_pbn)
+        self.open_button.pack(side="left")
+        self.file_label = ttk.Label(controls, text="No PBN file selected")
+        self.file_label.pack(side="left", padx=8)
+        ttk.Label(controls, text="Board:").pack(side="left")
+        self.board_spin = ttk.Spinbox(controls, from_=0, to=0, width=5)
+        self.board_spin.set(0)
+        self.board_spin.pack(side="left", padx=4)
+        self.deal_button = ttk.Button(controls, text="Deal", command=self.start_deal)
+        self.deal_button.pack(side="left", padx=4)
+        self.stop_button = ttk.Button(controls, text="Stop", command=self.stop_deal)
+        self.stop_button.pack(side="left")
+        self.board_label = ttk.Label(controls)
+        self.board_label.pack(side="right")
 
-        # Hands laid out as a compass
-        self.panels = {d: HandPanel(d) for d in "NESW"}
-        compass = QGridLayout()
-        compass.addWidget(self.panels["N"], 0, 1)
-        compass.addWidget(self.panels["W"], 1, 0)
-        compass.addWidget(self.panels["E"], 1, 2)
-        compass.addWidget(self.panels["S"], 2, 1)
+        # Hands laid out as a compass, with the camera preview beside them
+        middle = ttk.Frame(self, padding=8)
+        middle.pack(fill="both", expand=True)
+        compass = ttk.Frame(middle)
+        compass.pack(side="left")
+        self.panels = {d: HandPanel(compass, d) for d in "NESW"}
+        self.panels["N"].grid(row=0, column=1, padx=4, pady=4)
+        self.panels["W"].grid(row=1, column=0, padx=4, pady=4)
+        self.panels["E"].grid(row=1, column=2, padx=4, pady=4)
+        self.panels["S"].grid(row=2, column=1, padx=4, pady=4)
+        self.preview = tk.Label(
+            middle,
+            text="No camera image",
+            fg="#aaaaaa",
+            bg="#222222",
+            width=PREVIEW_SIZE[0] // 8,
+            height=PREVIEW_SIZE[1] // 16,
+        )
+        self.preview.pack(side="left", anchor="n", padx=8)
 
-        # Camera preview
-        self.preview = QLabel("No camera image")
-        self.preview.setFixedSize(320, 240)
-        self.preview.setAlignment(Qt.AlignCenter)
-        self.preview.setStyleSheet("background: #222; color: #aaa;")
+        # Progress
+        bottom = ttk.Frame(self, padding=8)
+        bottom.pack(fill="x")
+        self.progress = ttk.Progressbar(bottom, maximum=52)
+        self.progress.pack(fill="x")
+        self.status = ttk.Label(bottom, text="Select a PBN file")
+        self.status.pack(anchor="w", pady=(4, 0))
 
-        middle = QHBoxLayout()
-        middle.addLayout(compass)
-        middle.addWidget(self.preview, alignment=Qt.AlignTop)
-
-        self.progress = QProgressBar()
-        self.progress.setRange(0, 52)
-        self.status = QLabel("Select a PBN file")
-
-        root = QVBoxLayout()
-        root.addLayout(controls)
-        root.addLayout(middle)
-        root.addWidget(self.progress)
-        root.addWidget(self.status)
-        central = QWidget()
-        central.setLayout(root)
-        self.setCentralWidget(central)
-
-        # Poll the board switch and refresh the camera preview
-        self.poll_timer = QTimer(self)
-        self.poll_timer.timeout.connect(self.poll)
-        self.poll_timer.start(250)
+        self.protocol("WM_DELETE_WINDOW", self.on_close)
         self.update_buttons()
+        self.after(POLL_MS, self.poll)
 
     # Helpers
     def dealing(self):
-        return self.worker is not None and self.worker.isRunning()
+        return self.worker is not None and self.worker.is_alive()
 
     def update_buttons(self):
         busy = self.dealing()
-        self.open_button.setEnabled(not busy)
-        self.board_spin.setEnabled(not busy)
-        self.deal_button.setEnabled(not busy and bool(self.packs))
-        self.stop_button.setEnabled(busy)
+        state = "disabled" if busy else "normal"
+        self.open_button.config(state=state)
+        self.board_spin.config(state=state)
+        self.deal_button.config(state="normal" if not busy and self.packs else "disabled")
+        self.stop_button.config(state="normal" if busy else "disabled")
 
     def poll(self):
+        """Runs every POLL_MS in the GUI thread"""
+        self.drain_events()
         try:
             present = self.dealer.board_present()
         except Exception:
             present = False
-        self.board_label.setText("Board in place" if present else "No board")
+        self.board_label.config(text="Board in place" if present else "No board")
+        self.poll_count += 1
+        if self.poll_count % PREVIEW_EVERY == 0:
+            self.update_preview()
+        self.after(POLL_MS, self.poll)
+
+    def update_preview(self):
         image = self.dealer.camera.image
-        if image is not None:
-            h, w = image.shape[:2]
-            qimage = QImage(image.data, w, h, image.strides[0], QImage.Format_BGR888)
-            self.preview.setPixmap(
-                QPixmap.fromImage(qimage).scaled(
-                    self.preview.size(), Qt.KeepAspectRatio
-                )
-            )
+        if image is None:
+            return
+        # Tk reads PNG data directly, so Pillow is not needed
+        small = cv2.resize(image, PREVIEW_SIZE)
+        ok, png = cv2.imencode(".png", small)
+        if ok:
+            self.preview_image = tk.PhotoImage(data=base64.b64encode(png.tobytes()))
+            self.preview.config(image=self.preview_image, width=0, height=0)
+
+    def drain_events(self):
+        while True:
+            try:
+                event = self.events.get_nowait()
+            except queue.Empty:
+                return
+            if event[0] == "card":
+                _, card, slot, count = event
+                self.panels[slot].add(card)
+                self.progress.config(value=count)
+            elif event[0] == "finished":
+                self.on_finished(event[1])
 
     # Actions
+    def board_number(self):
+        try:
+            return int(self.board_spin.get())
+        except ValueError:
+            return 0
+
     def open_pbn(self):
-        path, _ = QFileDialog.getOpenFileName(
-            self, "Select PBN file", str(PBN_DIR), "PBN files (*.pbn);;All files (*)"
+        path = filedialog.askopenfilename(
+            title="Select PBN file",
+            initialdir=PBN_DIR,
+            filetypes=[("PBN files", "*.pbn"), ("All files", "*.*")],
         )
         if not path:
             return
         self.packs = create_packs(Path(path))
-        self.file_label.setText(f"{Path(path).name}: {len(self.packs)} boards")
-        self.board_spin.setRange(1 if self.packs else 0, len(self.packs))
-        self.status.setText("Ready")
+        self.file_label.config(text=f"{Path(path).name}: {len(self.packs)} boards")
+        self.board_spin.config(from_=1 if self.packs else 0, to=len(self.packs))
+        self.board_spin.set(1 if self.packs else 0)
+        self.status.config(text="Ready")
         self.update_buttons()
 
     def start_deal(self):
-        if not self.dealer.board_present():
-            QMessageBox.warning(self, "Bridge dealer", "Insert a board first")
+        number = self.board_number()
+        if not 1 <= number <= len(self.packs):
+            messagebox.showwarning("Bridge dealer", f"Board must be 1 to {len(self.packs)}")
             return
-        number = self.board_spin.value()
+        if not self.dealer.board_present():
+            messagebox.showwarning("Bridge dealer", "Insert a board first")
+            return
         for panel in self.panels.values():
             panel.clear()
-        self.progress.setValue(0)
-        self.status.setText(f"Dealing board {number}...")
+        self.progress.config(value=0)
+        self.status.config(text=f"Dealing board {number}...")
         self.dealer.stop_event.clear()
-        self.worker = DealWorker(self.dealer, self.packs[number - 1])
+        self.worker = threading.Thread(
+            target=self.run_deal, args=(self.packs[number - 1],), daemon=True
+        )
         self.worker.start()
         self.update_buttons()
 
+    def run_deal(self, pack):
+        """Worker thread"""
+        ok = False
+        try:
+            ok = bool(self.dealer.deal(pack))
+        except Exception as e:
+            print(f"Deal error: {e}")
+            reset()
+        self.events.put(("finished", ok))
+
     def stop_deal(self):
-        self.status.setText("Stopping...")
+        self.status.config(text="Stopping...")
         self.dealer.stop_event.set()
 
-    # Signals from the worker thread
-    def on_card_dealt(self, card, slot, count):
-        self.panels[slot].add(card)
-        self.progress.setValue(count)
-
     def on_finished(self, ok):
-        self.worker.wait()
+        self.worker.join()
+        number = self.board_number()
         if ok:
-            self.status.setText(f"Board {self.board_spin.value()} completed")
+            self.status.config(text=f"Board {number} completed")
         elif self.dealer.stop_event.is_set():
-            self.status.setText("Stopped")
+            self.status.config(text="Stopped")
         else:
-            self.status.setText(f"Board {self.board_spin.value()} failed")
+            self.status.config(text=f"Board {number} failed")
         self.update_buttons()
 
-    def closeEvent(self, event):
+    def on_close(self):
         if self.dealing():
             self.dealer.stop_event.set()
-            self.worker.wait(5000)
+            self.worker.join(5)
         reset()
-        event.accept()
+        self.destroy()
 
 
 def main():
-    app = QApplication(sys.argv)
-    window = MainWindow()
-    window.show()
-    sys.exit(app.exec())
+    App().mainloop()
 
 
 if __name__ == "__main__":
