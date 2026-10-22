@@ -230,6 +230,17 @@ class App(tk.Tk):
             self.update_preview()
         self.after(POLL_MS, self.poll)
 
+    def clear_preview(self):
+        self.dealer.card_image = None
+        self.shown_image = None
+        self.preview_image = None
+        self.preview.config(
+            image="",
+            text="No card image",
+            width=PREVIEW_MAX[0] // 8,
+            height=PREVIEW_MAX[1] // 16,
+        )
+
     def update_preview(self):
         image = self.dealer.card_image
         if image is None or image is self.shown_image:
@@ -330,6 +341,8 @@ class App(tk.Tk):
         else:
             self.status.config(text=f"Board {number} failed")
         self.complete = ok
+        if ok:
+            self.clear_preview()
         # The spinbox ignores set() while disabled, so enable the controls first
         self.update_buttons()
         if ok:
