@@ -112,6 +112,39 @@ class HandPanel(tk.LabelFrame):
             self.counter.tkraise()
 
 
+class NewPbnDialog(simpledialog.Dialog):
+    """Asks for the number of boards, and whether every board must have a hand that can open"""
+
+    def __init__(self, parent):
+        self.result = None  # (boards, opening) when OK is pressed
+        super().__init__(parent, "New PBN")
+
+    def body(self, master):
+        ttk.Label(master, text="Number of boards:").grid(row=0, column=0, sticky="w")
+        self.boards = tk.IntVar(value=pbn.DEFAULT_BOARDS)
+        spin = ttk.Spinbox(master, from_=1, to=99, width=5, textvariable=self.boards)
+        spin.grid(row=0, column=1, padx=8, pady=4)
+        self.opening = tk.BooleanVar(value=False)
+        ttk.Checkbutton(
+            master,
+            text=f"Reject boards where no hand has {pbn.OPENING_POINTS} or more points",
+            variable=self.opening,
+        ).grid(row=1, column=0, columnspan=2, sticky="w", pady=4)
+        return spin  # first focus
+
+    def validate(self):
+        try:
+            valid = 1 <= self.boards.get() <= 99
+        except tk.TclError:  # not a number
+            valid = False
+        if not valid:
+            messagebox.showwarning("New PBN", "Number of boards must be 1 to 99", parent=self)
+        return valid
+
+    def apply(self):
+        self.result = (self.boards.get(), self.opening.get())
+
+
 class BoardsWindow(tk.Toplevel):
     """Shows the boards of the current PBN file as hand diagrams"""
 
@@ -368,16 +401,10 @@ class App(tk.Tk):
 
     def new_pbn(self):
         """Create a PBN file of random deals named for today's date, and open it"""
-        boards = simpledialog.askinteger(
-            "New PBN",
-            "Number of boards:",
-            initialvalue=pbn.DEFAULT_BOARDS,
-            minvalue=1,
-            maxvalue=99,
-            parent=self,
-        )
-        if boards is None:
+        result = NewPbnDialog(self).result
+        if result is None:
             return
+        boards, opening = result
         path = pbn.PBN_DIR / pbn.default_name()
         overwrite = False
         if path.exists():
@@ -387,7 +414,7 @@ class App(tk.Tk):
                 return
             overwrite = True
         try:
-            pbn.create_pbn(path, boards=boards, overwrite=overwrite)
+            pbn.create_pbn(path, boards=boards, opening=opening, overwrite=overwrite)
         except OSError as e:
             messagebox.showerror("Bridge dealer", f"Could not create {path.name}:\n{e}")
             return
