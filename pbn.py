@@ -7,6 +7,8 @@ Spec: https://www.tistis.nl/pbn/pbn_v10.txt
 
 import logging
 import random
+import re
+from dataclasses import dataclass
 from datetime import date as Date
 from pathlib import Path
 from typing import Dict, List, Optional
@@ -54,24 +56,72 @@ def parse_deal(deal: str) -> Dict[str, str]:
     return pack
 
 
-def read_packs(file_path: Path) -> List[Dict[str, str]]:
-    """
-    Read a PBN file and return one pack, {card: direction}, per board in file order.
-    Boards with a missing or malformed [Deal] tag are skipped with a warning.
-    """
-    packs = []
-    text = Path(file_path).read_text(encoding="utf-8", errors="replace")
+@dataclass
+class Board:
+    number: int
+    dealer: str  # N, E, S or W
+    vulnerable: str  # None, NS, EW or All, as written in the file
+    pack: Dict[str, str]  # {card: direction}
+
+    def hand(self, direction: str) -> List[str]:
+        """The cards of one hand, by suit (S, H, D, C) and then high to low"""
+        cards = [c for c, d in self.pack.items() if d == direction]
+        return sorted(cards, key=lambda c: (SUITS.index(c[1]), RANKS.index(c[0])))
+
+
+TAG = re.compile(r'\[(\w+)\s+"(.*)"\]')
+
+
+def _records(text: str):
+    """Yield {tag: value} for each board in the file. A blank line ends a board."""
+    tags = {}
     for line in text.splitlines():
         line = line.strip()
-        if not line.startswith("[Deal "):
+        if not line:
+            if "Deal" in tags:
+                yield tags
+                tags = {}
             continue
-        # [Deal "N:T.95.AT75432.K73 ..."]
+        match = TAG.match(line)
+        if not match:
+            continue  # comment, or a line of a table such as the double dummy results
+        name, value = match.groups()
+        if name == "Deal" and "Deal" in tags:
+            # No blank line between boards
+            yield tags
+            tags = {}
+        tags[name] = value
+    if "Deal" in tags:
+        yield tags
+
+
+def read_boards(file_path: Path) -> List[Board]:
+    """
+    Read a PBN file and return its boards in file order.
+    Boards with a missing or malformed [Deal] tag are skipped with a warning.
+    """
+    boards = []
+    text = Path(file_path).read_text(encoding="utf-8", errors="replace")
+    for tags in _records(text):
         try:
-            deal = line[line.index('"') + 1 : line.rindex('"')]
-            packs.append(parse_deal(deal))
+            pack = parse_deal(tags["Deal"])
         except ValueError as e:
             logging.warning(f"Malformed deal skipped: {e}")
-    return packs
+            continue
+        dealer = tags.get("Dealer", "")
+        if dealer not in DIRECTIONS:
+            dealer = tags["Deal"].strip()[0]  # the first hand listed
+        try:
+            number = int(tags["Board"])
+        except (KeyError, ValueError):
+            number = len(boards) + 1
+        boards.append(Board(number, dealer, tags.get("Vulnerable", ""), pack))
+    return boards
+
+
+def read_packs(file_path: Path) -> List[Dict[str, str]]:
+    """Read a PBN file and return one pack, {card: direction}, per board in file order."""
+    return [board.pack for board in read_boards(file_path)]
 
 
 def random_deal(rng: Optional[random.Random] = None) -> Dict[str, List[str]]:

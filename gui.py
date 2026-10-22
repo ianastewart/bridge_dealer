@@ -112,11 +112,78 @@ class HandPanel(tk.LabelFrame):
             self.counter.tkraise()
 
 
+class BoardsWindow(tk.Toplevel):
+    """Shows the boards of the current PBN file as hand diagrams"""
+
+    CELL = 30  # width of one hand, wide enough for "♠ A K Q J 10 9 8 7 6 5 4 3 2"
+
+    def __init__(self, parent):
+        super().__init__(parent)
+        self.geometry("800x640")
+        self.text = tk.Text(self, font=("Courier", 12), wrap="none", bg="white")
+        scroll = ttk.Scrollbar(self, command=self.text.yview)
+        self.text.config(yscrollcommand=scroll.set)
+        scroll.pack(side="right", fill="y")
+        self.text.pack(side="left", fill="both", expand=True)
+        self.text.tag_config("red", foreground=RED)
+        self.text.tag_config("head", font=("Courier", 12, "bold"), spacing1=12)
+
+    @staticmethod
+    def suit_lines(board, direction):
+        """Four lines, one per suit, each a list of (text, tag)"""
+        cards = board.hand(direction)
+        lines = []
+        for suit in SUIT_ORDER:
+            ranks = " ".join("10" if c[0] == "T" else c[0] for c in cards if c[1] == suit)
+            ranks = ranks or "-"
+            tag = "red" if suit in "HD" else ""
+            lines.append([(SUIT_SYMBOLS[suit], tag), (f" {ranks}", "")])
+        return lines
+
+    def pad(self, segments):
+        used = sum(len(t) for t, _ in segments)
+        return segments + [(" " * (self.CELL - used), "")]
+
+    def show(self, boards, name, current=None):
+        self.title(f"{name}: {len(boards)} boards")
+        self.text.config(state="normal")
+        self.text.delete("1.0", "end")
+        for board in boards:
+            self.text.mark_set(f"board{board.number}", "end-1c")
+            self.text.mark_gravity(f"board{board.number}", "left")
+            vul = board.vulnerable or "?"
+            self.text.insert(
+                "end",
+                f"Board {board.number}   Dealer {board.dealer}   Vul {vul}\n",
+                "head",
+            )
+            hands = {d: self.suit_lines(board, d) for d in "NESW"}
+            blank = []
+            rows = []
+            for i in range(4):
+                rows.append([blank, hands["N"][i], blank])
+            for i in range(4):
+                rows.append([hands["W"][i], blank, hands["E"][i]])
+            for i in range(4):
+                rows.append([blank, hands["S"][i], blank])
+            for row in rows:
+                for cell in row:
+                    for text, tag in self.pad(cell):
+                        self.text.insert("end", text, tag)
+                self.text.insert("end", "\n")
+        self.text.config(state="disabled")
+        if current is not None and f"board{current}" in self.text.mark_names():
+            self.text.yview(f"board{current}")
+
+
 class App(tk.Tk):
     def __init__(self):
         super().__init__()
         self.title("Bridge dealer")
         self.packs = []
+        self.boards = []
+        self.pbn_name = ""
+        self.boards_window = None
         self.worker = None
         self.preview_image = None  # keep a reference or Tk drops the image
         self.shown_image = None
@@ -133,6 +200,8 @@ class App(tk.Tk):
         self.open_button.pack(side="left")
         self.new_button = ttk.Button(controls, text="New PBN...", command=self.new_pbn)
         self.new_button.pack(side="left", padx=4)
+        self.show_button = ttk.Button(controls, text="Show", command=self.show_pbn)
+        self.show_button.pack(side="left")
         self.file_label = ttk.Label(controls, text="No PBN file selected")
         self.file_label.pack(side="left", padx=8)
         ttk.Label(controls, text="Board:").pack(side="left")
@@ -197,6 +266,7 @@ class App(tk.Tk):
         state = "disabled" if busy else "normal"
         self.open_button.config(state=state)
         self.new_button.config(state=state)
+        self.show_button.config(state="normal" if self.boards else "disabled")
         self.board_spin.config(state=state)
         can_deal = self.dealer is not None and bool(self.packs)
         self.deal_button.config(state="normal" if not busy and can_deal else "disabled")
@@ -324,16 +394,32 @@ class App(tk.Tk):
         self.load_pbn(path)
 
     def load_pbn(self, path):
-        packs = pbn.read_packs(path)
-        if not packs:
+        boards = pbn.read_boards(path)
+        if not boards:
             messagebox.showwarning("Bridge dealer", f"No boards found in {path.name}")
             return
-        self.packs = packs
+        self.boards = boards
+        self.pbn_name = path.name
+        packs = self.packs = [board.pack for board in boards]
         self.file_label.config(text=f"{path.name}: {len(packs)} boards")
         self.board_spin.config(from_=1, to=len(packs))
         self.board_spin.set(1)
         self.show_status()
         self.update_buttons()
+        if self.boards_window_open():
+            self.show_pbn()  # refresh it with the new file
+
+    def boards_window_open(self):
+        return self.boards_window is not None and self.boards_window.winfo_exists()
+
+    def show_pbn(self):
+        """Show the boards of the current PBN file in a window"""
+        if not self.boards:
+            return
+        if not self.boards_window_open():
+            self.boards_window = BoardsWindow(self)
+        self.boards_window.show(self.boards, self.pbn_name, self.board_number())
+        self.boards_window.lift()
 
     def start_deal(self):
         number = self.board_number()
