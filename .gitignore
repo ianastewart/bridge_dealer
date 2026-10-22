@@ -399,3 +399,6 @@ cache/
 
 # JetBrains IDE settings
 .idea/
+
+# BrianBridge upload credentials
+brian.json

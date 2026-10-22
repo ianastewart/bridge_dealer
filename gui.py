@@ -113,10 +113,10 @@ class HandPanel(tk.LabelFrame):
 
 
 class NewPbnDialog(simpledialog.Dialog):
-    """Asks for the number of boards, and whether every board must have a hand that can open"""
+    """Asks for the number of boards, and the options for creating the file"""
 
     def __init__(self, parent):
-        self.result = None  # (boards, opening) when OK is pressed
+        self.result = None  # (boards, opening, upload) when OK is pressed
         super().__init__(parent, "New PBN")
 
     def body(self, master):
@@ -130,6 +130,10 @@ class NewPbnDialog(simpledialog.Dialog):
             text=f"Reject boards where no hand has {pbn.OPENING_POINTS} or more points",
             variable=self.opening,
         ).grid(row=1, column=0, columnspan=2, sticky="w", pady=4)
+        self.upload = tk.BooleanVar(value=False)
+        ttk.Checkbutton(
+            master, text="Upload to BrianBridge when created", variable=self.upload
+        ).grid(row=2, column=0, columnspan=2, sticky="w", pady=4)
         return spin  # first focus
 
     def validate(self):
@@ -142,7 +146,7 @@ class NewPbnDialog(simpledialog.Dialog):
         return valid
 
     def apply(self):
-        self.result = (self.boards.get(), self.opening.get())
+        self.result = (self.boards.get(), self.opening.get(), self.upload.get())
 
 
 class BoardsWindow(tk.Toplevel):
@@ -358,12 +362,23 @@ class App(tk.Tk):
                 self.progress.config(value=count)
             elif event[0] == "finished":
                 self.on_finished(event[1])
+            elif event[0] == "uploaded":
+                self.on_uploaded(*event[1:])
             elif event[0] == "ready":
                 self.on_ready(event[1])
             elif event[0] == "load_failed":
                 self.progress.stop()
                 self.status.config(text=f"Could not start dealer: {event[1]}")
                 messagebox.showerror("Bridge dealer", f"Could not start dealer:\n{event[1]}")
+
+    def on_uploaded(self, name, ok, message):
+        if ok:
+            text = f"{name} uploaded to BrianBridge"
+        else:
+            text = f"Upload of {name} failed: {message}"
+            messagebox.showerror("Bridge dealer", text)
+        if not self.dealing():  # do not overwrite the status of a deal
+            self.status.config(text=text)
 
     def on_ready(self, backend):
         self.backend = backend
@@ -404,7 +419,7 @@ class App(tk.Tk):
         result = NewPbnDialog(self).result
         if result is None:
             return
-        boards, opening = result
+        boards, opening, upload = result
         path = pbn.PBN_DIR / pbn.default_name()
         overwrite = False
         if path.exists():
@@ -419,6 +434,23 @@ class App(tk.Tk):
             messagebox.showerror("Bridge dealer", f"Could not create {path.name}:\n{e}")
             return
         self.load_pbn(path)
+        if upload:
+            self.start_upload(path)
+
+    def start_upload(self, path):
+        self.status.config(text=f"Uploading {path.name} to BrianBridge...")
+        threading.Thread(target=self.run_upload, args=(path,), daemon=True).start()
+
+    def run_upload(self, path):
+        """Worker thread. The network can be slow, so it must not block the window"""
+        try:
+            import brian
+
+            response = brian.upload_pbn(path)
+            ok, message = response.status_code == 200, f"HTTP {response.status_code}"
+        except Exception as e:
+            ok, message = False, str(e)
+        self.events.put(("uploaded", path.name, ok, message))
 
     def load_pbn(self, path):
         boards = pbn.read_boards(path)
