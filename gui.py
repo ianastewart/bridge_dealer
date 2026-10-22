@@ -338,6 +338,9 @@ class App(tk.Tk):
             self.status.config(text=f"Board {number} completed")
         elif self.dealer.stop_event.is_set():
             self.status.config(text="Stopped")
+        elif self.dealer.not_ready:
+            # The image of what the camera sees stays in the preview
+            self.status.config(text="Not ready: no card could be read. Check the pack")
         else:
             self.status.config(text=f"Board {number} failed")
         self.complete = ok
