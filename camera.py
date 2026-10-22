@@ -19,14 +19,14 @@ except ImportError:
 
 
 # Crop positions to extract top left of card
-X1 = 305 # 200
+X1 = 315 # 200
 X2 = 530 # 530 #380
 Y1 = 50  # 20
 
 Y2 = 470  # 390
 
 
-THRESHOLD = 110
+THRESHOLD = 130
 
 # Dimensions of binary masks
 WIDTH = 110
