@@ -82,13 +82,14 @@ class HandPanel(ttk.LabelFrame):
     def __init__(self, parent, direction):
         super().__init__(parent, text=self.NAMES[direction], padding=8)
         self.cards = []
+        self.revealed = False
         self.lines = {}
         for suit in SUIT_ORDER:
             label = tk.Label(
                 self,
                 font=("Courier", 14),
                 anchor="w",
-                width=24,
+                width=26,
                 fg=RED if suit in "HD" else "black",
             )
             label.pack(anchor="w")
@@ -97,10 +98,15 @@ class HandPanel(ttk.LabelFrame):
 
     def clear(self):
         self.cards = []
+        self.revealed = False
         self.refresh()
 
     def add(self, card):
         self.cards.append(card)
+        self.refresh()
+
+    def set_revealed(self, revealed):
+        self.revealed = revealed
         self.refresh()
 
     def refresh(self):
@@ -108,6 +114,9 @@ class HandPanel(ttk.LabelFrame):
             ranks = sorted(
                 (c[0] for c in self.cards if c[1] == suit), key=RANKS.index, reverse=True
             )
+            if not self.revealed:
+                # Hide the ranks: one * per card in the suit
+                ranks = ["*"] * len(ranks)
             text = " ".join("10" if r == "T" else r for r in ranks) or "-"
             self.lines[suit].config(text=f"{SUIT_SYMBOLS[suit]} {text}")
 
@@ -120,6 +129,7 @@ class App(tk.Tk):
         self.worker = None
         self.preview_image = None  # keep a reference or Tk drops the image
         self.shown_image = None
+        self.complete = False  # True when the hands shown are a finished board
         self.poll_count = 0
         self.events = queue.Queue()
         self.dealer = GuiDealer(self.events)
@@ -139,6 +149,10 @@ class App(tk.Tk):
         self.deal_button.pack(side="left", padx=4)
         self.stop_button = ttk.Button(controls, text="Stop", command=self.stop_deal)
         self.stop_button.pack(side="left")
+        self.reveal_button = ttk.Button(
+            controls, text="Reveal hands", command=self.toggle_reveal
+        )
+        self.reveal_button.pack(side="left", padx=4)
         self.board_label = ttk.Label(controls)
         self.board_label.pack(side="right")
 
@@ -185,6 +199,7 @@ class App(tk.Tk):
         self.board_spin.config(state=state)
         self.deal_button.config(state="normal" if not busy and self.packs else "disabled")
         self.stop_button.config(state="normal" if busy else "disabled")
+        self.reveal_button.config(state="normal" if self.complete and not busy else "disabled")
 
     def poll(self):
         """Runs every POLL_MS in the GUI thread"""
@@ -258,6 +273,8 @@ class App(tk.Tk):
             return
         for panel in self.panels.values():
             panel.clear()
+        self.complete = False
+        self.reveal_button.config(text="Reveal hands")
         self.progress.config(value=0)
         self.status.config(text=f"Dealing board {number}...")
         self.dealer.stop_event.clear()
@@ -277,6 +294,12 @@ class App(tk.Tk):
             reset()
         self.events.put(("finished", ok))
 
+    def toggle_reveal(self):
+        reveal = not self.panels["N"].revealed
+        for panel in self.panels.values():
+            panel.set_revealed(reveal)
+        self.reveal_button.config(text="Hide hands" if reveal else "Reveal hands")
+
     def stop_deal(self):
         self.status.config(text="Stopping...")
         self.dealer.stop_event.set()
@@ -290,6 +313,7 @@ class App(tk.Tk):
             self.status.config(text="Stopped")
         else:
             self.status.config(text=f"Board {number} failed")
+        self.complete = ok
         # The spinbox ignores set() while disabled, so enable the controls first
         self.update_buttons()
         if ok:
