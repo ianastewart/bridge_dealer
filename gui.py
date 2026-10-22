@@ -22,6 +22,7 @@ from pbn_reader import create_packs
 SUIT_SYMBOLS = {"S": "♠", "H": "♥", "D": "♦", "C": "♣"}
 SUIT_ORDER = "SHDC"
 RED = "#c0392b"
+BACKGROUND = "white"  # hand boxes
 PBN_DIR = Path(__file__).parent / "pbns"
 PREVIEW_MAX = (300, 420)  # largest size of the card image, the crop is portrait
 POLL_MS = 100
@@ -74,13 +75,15 @@ class GuiDealer(Dealer):
         pass
 
 
-class HandPanel(ttk.LabelFrame):
+class HandPanel(tk.LabelFrame):
     """Shows the cards dealt to one hand, grouped by suit"""
 
     NAMES = {"N": "North", "E": "East", "S": "South", "W": "West"}
 
     def __init__(self, parent, direction):
-        super().__init__(parent, text=self.NAMES[direction], padding=8)
+        super().__init__(
+            parent, text=self.NAMES[direction], bg=BACKGROUND, padx=8, pady=8
+        )
         self.cards = []
         self.revealed = False
         self.lines = {}
@@ -88,19 +91,22 @@ class HandPanel(ttk.LabelFrame):
         self.rowconfigure(0, weight=1)
         # The suit lines and the counter share one cell. Whichever is raised is shown,
         # and the suit lines keep the panel the same size when the counter is shown.
-        self.suits = tk.Frame(self)
+        self.suits = tk.Frame(self, bg=BACKGROUND)
         self.suits.grid(row=0, column=0, sticky="nsew")
         for suit in SUIT_ORDER:
             label = tk.Label(
                 self.suits,
                 font=("Courier", 14),
                 anchor="w",
+                bg=BACKGROUND,
                 width=26,
                 fg=RED if suit in "HD" else "black",
             )
             label.pack(anchor="w")
             self.lines[suit] = label
-        self.counter = tk.Label(self, font=("Helvetica", 56, "bold"), anchor="center")
+        self.counter = tk.Label(
+            self, font=("Helvetica", 56, "bold"), anchor="center", bg=BACKGROUND
+        )
         self.counter.grid(row=0, column=0, sticky="nsew")
         self.refresh()
 
