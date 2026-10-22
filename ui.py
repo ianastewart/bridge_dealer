@@ -1,6 +1,13 @@
+import os
+import time
+# print("Python:", sys.executable)
+# print("Version:", sys.version)
+# print("SysPath:\n", "\n".join(sys.path))
 from pbn_reader import create_packs
 from dealer import Dealer
 from pathlib import Path
+import tkinter as tk
+from tkinter import filedialog
 
 try:
     import RPi.GPIO as GPIO
@@ -13,6 +20,7 @@ def main_loop():
     dealer = Dealer()
     keyed = ""
     while True:
+        number = 1
         valid = False
         while not valid:
             keyed = input("Enter board number or q: ")
@@ -29,6 +37,7 @@ def main_loop():
         print(f"Preparing to deal board {number}")
         while not dealer.board_present():
             print("Insert board")
+            time.sleep(1)
         while not dealer.is_ready():
             print("Waiting")
         if dealer.is_ready():
@@ -39,8 +48,23 @@ def main_loop():
                 reset()
 
 
-pbn_name = "251217.pbn"
-pbn_path = Path(f"pbns/{pbn_name}")
+
+# Create a root window (hidden)
+root = tk.Tk()
+root.withdraw()  # Hide the main window
+
+# Open file dialog
+pbn_path = filedialog.askopenfilename(
+    title="Select a file",
+    filetypes=[("pbn files", "*.pbn"), ("All files", "*.*")],
+    initialdir="pbns"
+)
+
+if pbn_path:
+    print("Selected file:", pbn_path)
+else:
+    print("No file selected.")
+pbn_name = os.path.split(pbn_path)[1]
 packs = create_packs(pbn_path)
 print(f"{pbn_name} contains {len(packs)} boards")
 main_loop()

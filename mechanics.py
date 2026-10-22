@@ -6,7 +6,6 @@ except ImportError:
     print("No RPi.GPIO")
 
 # Output pins
-LAMP = 16
 MOTOR = 35  # Relay 1
 GATE_1 = 29 # Relay 4
 GATE_2 = 31 # Relay 3
@@ -14,13 +13,13 @@ GATE_3 = 33 # Relay 2
 DRIVER_1 = 40 # Feed motor driver
 DRIVER_2 = 38 # Feed motor driver
 # Input pins
-CARD_FED = 18
+CARD_FED = 32 #18
 BOARD_SWITCH = 36
 
 # Time in seconds after card detected as fed
-FEED_PULSE = 0.01
-WAIT_BASE = 0.0
-WAIT_INCREMENT = 0.1
+FEED_PULSE = 0.1
+WAIT_BASE = 0.2
+WAIT_INCREMENT = 0
 FEED_RETRIES = 5
 # Global vars
 ready_time = 0
@@ -47,13 +46,13 @@ def configure_gpio():
     GPIO.setup(GATE_3, GPIO.OUT)
     GPIO.setup(DRIVER_1, GPIO.OUT)
     GPIO.setup(DRIVER_2, GPIO.OUT)
-    GPIO.setup(LAMP, GPIO.OUT)
     #
     GPIO.setup(CARD_FED, GPIO.IN)
     GPIO.setup(BOARD_SWITCH, GPIO.IN, pull_up_down=GPIO.PUD_UP)
 
 
 def reset():
+    read_time = 0
     wait_until_ready()
     configure_gpio()
     GPIO.output(GATE_1, GPIO.LOW)
@@ -62,7 +61,6 @@ def reset():
     GPIO.output(DRIVER_1, GPIO.LOW)
     GPIO.output(DRIVER_2, GPIO.LOW)
     GPIO.output(MOTOR, GPIO.LOW)
-    GPIO.output(LAMP, GPIO.LOW)
 
 
 class Gate:
@@ -138,14 +136,6 @@ def motor_off():
     GPIO.output(MOTOR, GPIO.LOW)
 
 
-def lamp_on():
-    GPIO.output(LAMP, GPIO.HIGH)
-
-
-def lamp_off():
-    GPIO.output(LAMP, GPIO.LOW)
-
-
 def is_fed():
     return GPIO.input(CARD_FED) == 0
 
@@ -156,100 +146,121 @@ def feed_reset(duration=0.1):
     feed_stop()
 
 
-def feed(wait=1, camera=None):
-    global ready_time
+def feed(camera=None, debug=False):
     feed_forward()
     t1 = 0
     while not is_fed():
         time.sleep(0.01)
         t1 += 1
-        if t1 == 100:
+        if t1 == 500:
             feed_stop()
             return False
-    if camera:
-        time.sleep(0.05)
+    if camera:      
         camera.capture()
+    t2 = time.time()
     time.sleep(FEED_PULSE)
     feed_stop()
-    t2 = 0
+    t3 = 0
     while is_fed():
         time.sleep(0.01)
-        t2 += 1
-        if t2 == 50:
+        t3 += 1
+        if t3 == 100:
             return False
-    # print(time.time() - start)
-    # time.sleep(delay)
-    print(t1, t2)
-    new_time = time.time() + wait
-    if new_time > ready_time:
-        ready_time = new_time
+    card_time= int((time.time() - t2)*100)#time.sleep(.1) #added
+    if debug:
+        print(t1, card_time)
     return True
 
 
-def feed_card(slot="N", camera=None):
-    global ready_time, last_slot
-    if slot == last_slot:
+def feed_card(slot="N", camera=None, last_slot=None, debug=False):
+    delay = 0
+    if slot == last_slot or last_slot is None:
         pass
         # print("Feed immediately")
-    elif last_slot == "N" and slot in ["S", "W"]:
-        pass
-        #print("case 2")
-    elif ready_time > 0:
-        t = 0
-        while time.time() < ready_time:
-            time.sleep(0.01)
-            t += 1
-        #print(f"Waited {t*10} ms")
-    delay = WAIT_BASE
+    elif last_slot == "N":
+        if slot == "S":
+            pass
+        elif slot == "W":
+            delay = WAIT_BASE +  WAIT_INCREMENT
+        elif slot == "E":
+            delay = WAIT_BASE + 2 * WAIT_INCREMENT
+    elif last_slot == "E":
+        delay = WAIT_BASE + 2 * WAIT_INCREMENT
+    elif last_slot == "W":
+        delay = WAIT_BASE + WAIT_INCREMENT
+    if delay > 0:    
+        time.sleep(delay)
     if slot == "S":
         set_south()
     elif slot == "W":
         set_west()
-        delay = WAIT_BASE + WAIT_INCREMENT
     elif slot == "E":
         set_east()
-        delay = WAIT_BASE + 2 * WAIT_INCREMENT
     elif slot == "N":
         set_north()
-        delay = WAIT_BASE + 3 * WAIT_INCREMENT
-    last_slot = slot
     retry = 0
+    if debug:
+        print(f"Feed: {slot} last: {last_slot} delay: {delay}")
     while retry < FEED_RETRIES:
-        if feed(int(delay), camera=camera):
-            return True
+        if feed(camera=camera, debug=debug):
+            return slot
         retry += 1
         print(f"Feed_error - retrying {retry}")
         feed_reset(duration=0.2)
     print("Fatal feed error")
     motor_off()
-
-
-def wait_time(slot):
-    if slot == "S":
-        return WAIT_BASE
-    elif slot == "W":
-        return WAIT_BASE + WAIT_INCREMENT
-    elif slot == "E":
-        return WAIT_BASE + 2 * WAIT_INCREMENT
-    elif slot == "N":
-        return WAIT_BASE + 3 * WAIT_INCREMENT
+    return None
 
 def board_present():
     return GPIO.input(BOARD_SWITCH) == 0 
     
-def feed_pack(count=13):
+def feed_pack(count=13, reverse=False, mixed=False):
     reset()
-    if not board_present():
-        print("Insert board")
-    else:
-        motor_on()
-        time.sleep(0.5)
-        for i in range(count):
-            feed_card("N")
-            feed_card("E")
-            feed_card("W")
-            feed_card("S")
-        reset()
+    motor_on()
+    start = time.time()
+    last_slot = None
+    for i in range(count):
+        print(i)
+        if reverse:
+            last_slot = feed_card("N", last_slot=last_slot)
+            last_slot = feed_card("E", last_slot=last_slot)
+            last_slot = feed_card("W", last_slot=last_slot)
+            last_slot = feed_card("S", last_slot=last_slot)
+        elif mixed:
+            last_slot = feed_card("N", last_slot=last_slot)
+            last_slot = feed_card("S", last_slot=last_slot)
+            last_slot = feed_card("E", last_slot=last_slot)
+            last_slot = feed_card("W", last_slot=last_slot)
+        else:
+            last_slot = feed_card("S", last_slot=last_slot)
+            last_slot = feed_card("W", last_slot=last_slot)
+            last_slot = feed_card("E", last_slot=last_slot)
+            last_slot = feed_card("N", last_slot=last_slot)
+    time.sleep(.3)
+    end = time.time()
+    mode = "Reverse" if reverse else "Mixed" if mixed else "Normal"
+    print (f"{mode} run time: {int(end-start)}")
+    reset()
+
+
+def test_fast(count=13):
+    reset()
+    motor_on()
+    start = time.time()
+    last_slot=None
+    for i in range (count):
+        last_slot = feed_card("S", last_slot=last_slot)
+    for i in range (count):        
+        last_slot = feed_card("W", last_slot=last_slot)
+    for i in range(count): 
+        last_slot = feed_card("E", last_slot=last_slot)
+    for i in range(count):
+        last_slot = feed_card("N", last_slot=last_slot)
+    time.sleep(.3)
+    end = time.time()
+    mode = "Fast"
+    print (f"{mode} run time: {int(end-start)}")
+    reset()
 
 
 def gate_test():
@@ -267,8 +278,11 @@ def gate_test():
 def time_path():
     reset()
     motor_on()
+    time.sleep(.2)
     start_time = time.time()
     for i in range(13):
+        set_north()
         feed_card("S")
+        feed_card("W")
     print(time.time() - start_time)
     reset()

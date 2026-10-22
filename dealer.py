@@ -2,7 +2,7 @@ import time
 
 import cv2
 
-from camera import Camera, PI
+from camera import Camera, PI, camera_test
 
 if PI:
     import RPi.GPIO as GPIO
@@ -12,7 +12,6 @@ if PI:
         motor_off,
         feed_card,
         feed_reset,
-        lamp_on,
         board_present,
     )
 else:
@@ -21,7 +20,6 @@ else:
         motor_on,
         feed_card,
         feed_reset,
-        lamp_on,
         board_present,
     )
 
@@ -40,33 +38,43 @@ def suit_sorter():
 
 
 class Dealer:
-
-    def __init__(self):
+    last_slot = None
+    debug = False
+    
+    def __init__(self, debug=False):
         self.pack = None
         self.card = ""
         self.dealt = {}
         self.suiter = {"C": "S", "D": "E", "H": "W", "S": "N"}
         self.camera = Camera()
-        self.camera.debug = True
+        self.camera.debug = debug
+        self.debug = debug
 
     def reset(self):
+        last_slot = None
         reset()
 
     def is_ready(self):
         if PI:
             reset()
-            lamp_on()
-            time.sleep(0.5)
             feed_reset()
             self.camera.capture()
             tries = 0
-            while not self.camera.read_card():
-                time.sleep(0.5)
-                self.camera.capture()
-                tries += 1
-                print("No card")
-                if tries == 100:
-                    return False
+            if not self.camera.read_card():
+                while True:
+                    print("No card")
+                    self.camera.show_image()
+                    keyed = input("r to retry, q to quit")
+                    if keyed == "q":
+                        return False
+                    if keyed =="r":
+                        self.camera.capture()
+                        ready = self.camera.read_card()
+                        if ready:
+                            keyed = input("c to continue, q to quit")
+                            if keyed == "q":
+                                return False
+                            break
             print("Ready")
             return True
         else:
@@ -87,7 +95,7 @@ class Dealer:
                 )
                 if not self.deal_card():
                     print("Deal failure")
-                    self.debug()
+                    self.camera.show_image()
                     reset()
                     self.print_dealt()
                     return False
@@ -125,8 +133,10 @@ class Dealer:
         print(self.card, slot)
         if self.card in self.dealt["All"]:
             print(f"Card {self.card} already dealt")
+            self.debug()
             return False
-        if feed_card(slot, camera=self.camera):
+        self.last_slot = feed_card(slot, camera=self.camera, last_slot=self.last_slot)
+        if self.last_slot is not None:
             self.dealt[slot].append(self.card)
             self.dealt["All"].append(self.card)
             return True
@@ -150,10 +160,11 @@ class Dealer:
             print(f"{key}: " + " ".join(self.dealt[key]))
 
     def debug(self):
-        cv2.imshow("Rank", self.camera.rank_image)
-        cv2.imshow("Suit", self.camera.suit_image)
-        cv2.waitKey(5)
-
+        try:
+            cv2.imshow("Rank", self.camera.rank_image)
+            cv2.imshow("Suit", self.camera.suit_image)
+        except Exception as e:
+            print("Debug cannot show image", e)
 
 def suits():
     # pack = suit_sorter()

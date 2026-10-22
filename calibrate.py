@@ -22,7 +22,6 @@ def read_templates(name="images2"):
     rank = "23456789TJQKA"
 
     reset()
-    lamp_on()
     camera.debug = True
     camera.capture()
     time.sleep(1)
@@ -63,7 +62,6 @@ def camera_test():
     if PI:
         camera.debug = True
         reset()
-        lamp_on()
         if camera.is_ready():
             while True:
                 camera.capture()
@@ -83,7 +81,6 @@ def capture_raw():
             clear_dir("img_path")
     if PI:
         reset()
-        lamp_on()
         camera.capture()
         time.sleep(2)
         motor_on()

@@ -1,5 +1,8 @@
 import os
 import cv2
+import glob
+from cv2 import imread, imwrite, imshow, waitKey, IMREAD_GRAYSCALE, cvtColor, COLOR_BGR2GRAY, threshold, \
+    THRESH_BINARY_INV, findContours, RETR_EXTERNAL, CHAIN_APPROX_SIMPLE, rectangle
 import numpy as np
 import time
 from dataclasses import dataclass
@@ -8,28 +11,29 @@ from pathlib import Path
 PI = True
 try:
     from picamera2 import Picamera2
-    from mechanics import lamp_on, lamp_off
+    from mechanics import reset, feed_card, motor_on
+    print("Camera found")
 except ImportError:
     PI = False
     print("No picamera2")
 
 
 # Crop positions to extract top left of card
-X1 = 315  # 200
-X2 = 510  # 530 #380
+X1 = 305 # 200
+X2 = 530 # 530 #380
 Y1 = 50  # 20
-Y2 = 450  # 390
 
-THRESHOLD = 135
+Y2 = 470  # 390
 
+
+THRESHOLD = 110
 
 # Dimensions of binary masks
 WIDTH = 110
 SUIT_HEIGHT = 130
 RANK_HEIGHT = 190
 
-
-RANK_DIFF_MAX = 7000
+RANK_DIFF_MAX = 8000 # was 7000
 SUIT_DIFF_MAX = 4000
 IMG_PATH = os.path.dirname(os.path.abspath(__file__)) + "/merged/"
 
@@ -50,8 +54,8 @@ class Camera:
     rank_image = None
     rank_templates = []
     suit_templates = []
-    debug = True
-    debug_templates = False
+    debug = False
+    debug_templates = True
     error = ""
     base_path = None
     sim_folder = None
@@ -78,6 +82,7 @@ class Camera:
             file = self.base_path.joinpath(template, f"{suit}.png")
             image = cv2.imread(str(file), cv2.IMREAD_GRAYSCALE)
             self.suit_templates.append(Template(image=image, name=suit, score=0))
+        print("Camera initialized")
 
     def capture(self):
         if PI:
@@ -86,6 +91,13 @@ class Camera:
             self.next()
         self.suit_image = None
         self.rank_image = None
+        if self.debug:
+            print("Capture image")
+            
+    def show_image(self):
+        cv2.imshow("Camera", self.image)
+        cv2.waitKey()
+        
 
     def next(self):
         file = self.iter.__next__()
@@ -133,7 +145,7 @@ class Camera:
                     self.source, (b[0], b[1]), (b[0] + b[2], b[1] + b[3]), colour, 2
                 )
             cv2.imshow("Contours", self.source)
-            cv2.imshow("Binary", self.binary)
+            cv2.imshow("Binaryf", self.binary)
             cv2.waitKey(1)
         if len(bounds) >= 2:
             rank = self.crop_bounds(self.binary, bounds[0])
@@ -149,21 +161,32 @@ class Camera:
                     # and extend the largest boundary to include it
                     if abs(b[1] - bounds[0][1]) < 15 and abs(b[3] - bounds[0][3]) < 15:
                         rank = self.binary[
-                            bounds[0][1] : bounds[0][1] + bounds[0][3],
-                            b[0] + 5 : bounds[0][0] + bounds[0][2],
+                            bounds[0][1]: bounds[0][1] + bounds[0][3],
+                            b[0] + 5: bounds[0][0] + bounds[0][2],
                         ]
                         break
         else:
-            self.error = f"Contours = {len(bounds)}"
+            self.error = f"Too many contours: {len(bounds)}"
             return False
         self.rank_bounds = bounds[0]
         self.suit_bounds = bounds[1]
-        self.rank_image = cv2.resize(rank, (WIDTH, RANK_HEIGHT))
-        self.suit_image = cv2.resize(suit, (WIDTH, SUIT_HEIGHT))
         if self.debug:
-            cv2.imshow("Rank", self.rank_image)
-            cv2.imshow("Suit", self.suit_image)
-            cv2.waitKey(1)
+            print("Bounds", self.rank_bounds, self.suit_bounds)
+        try:
+            self.rank_image = cv2.resize(rank, (WIDTH, RANK_HEIGHT))
+            self.suit_image = cv2.resize(suit, (WIDTH, SUIT_HEIGHT))
+        except Exception as e:
+            print(e)
+            return False
+        if self.debug:
+            try:
+                cv2.imshow("Rank", self.rank_image)
+                cv2.imshow("Suit", self.suit_image)
+                cv2.waitKey(1)
+                return True
+            except Exception as e:
+                printf(" Error in debug: {e}")
+                return False
         return True
 
     def match(self):
@@ -212,25 +235,30 @@ class Camera:
             2,
             cv2.LINE_AA,
         )
-        cv2.imshow("Contours", self.source)
-        cv2.waitKey(1)
+        if self.debug:
+            cv2.imshow("Contours", self.source)
+            cv2.waitKey(1)
         if self.debug_templates:
             print(f"Card = {card}")
-            self.debug_templates(self.rank_templates)
-            self.debug_templates(self.suit_templates)
+            self.debug_templates(self.rank_templates, "Rank")
+            self.debug_templates(self.suit_templates, "Suit")
+            print
         return card
 
     @staticmethod
-    def debug_templates(templates):
+    def debug_templates(templates, desc):
         sorted_templates = sorted(templates, key=lambda x: x.score)
-        for t in sorted_templates:
-            print(t.name, ":", int(t.score / 100), " ", end="", sep="")
-        print()
+        s0 = int(sorted_templates[0].score/100)
+        s1 = int(sorted_templates[1].score/100)
+        print(f"{desc} confidence: {s1-s0}",)
+        #for t in sorted_templates:
+        #    print(t.name, ":", int(t.score / 100), " ", end="", sep="")
+        #print()
 
     @staticmethod
     def crop_bounds(image, b):
         # crop image to boundary
-        return image[b[1] : b[1] + b[3], b[0] : b[0] + b[2]]
+        return image[b[1]: b[1] + b[3], b[0]: b[0] + b[2]]
 
     def stop(self):
         if self.picam2:
@@ -241,21 +269,24 @@ def camera_calibrate():
     from mechanics import feed, motor_on, motor_off
 
     # Determine best threshold
-    lamp_on()
-    time.sleep(2)
     camera.debug = True
     t = THRESHOLD
-    while True:
-        camera.capture()
+    camera.capture()
+    while True:     
         camera.threshold = t
-        camera.read_card()
+        read = camera.read_card()
         cv2.imshow("Input", camera.image)
+        if read:
+            print(camera.match())
+            cv2.imshow("Rank", camera.rank_image)
+            cv2.imshow("Suit", camera.suit_image)
         motor_off()
         key = cv2.waitKey()
         if key == ord("f"):
             motor_on()
-            time.sleep(0.5)
-            feed()
+            time.sleep(0.2)
+            feed(camera=camera)
+            time.sleep(0.2) 
             motor_off()
         if key == ord("q"):
             return
@@ -266,29 +297,28 @@ def camera_calibrate():
         print("Theshold:", t)
 
 
-def camera_test():
-    if PI:
-        lamp_on()
-        time.sleep(2)
+def camera_test(no_wait=False):
     camera.debug = True
+    cv2.namedWindow('Input', cv2.WINDOW_NORMAL)
+    cv2.resizeWindow('Input', 500, 500)  # Set window size to 800x600
     while True:
         camera.capture()
-        cv2.imshow("Input", camera.image)
+        if camera.debug:
+            cv2.imshow("Input", camera.image)
         if camera.read_card():
             print(camera.match())
-            cv2.imshow("Rank", camera.rank_image)
-            cv2.imshow("Suit", camera.suit_image)
+            if camera.debug:
+                cv2.imshow("Rank", camera.rank_image)
+                cv2.imshow("Suit", camera.suit_image)
         else:
             print("No card")
-        key = cv2.waitKey()
-        if key == ord("q"):
-            if PI:
-                lamp_off()
-            return
+        if not no_wait:
+            key = cv2.waitKey()
+            if key == ord("q"):
+                return
 
 
 def camera_image():
-    # lamp_on()
     while True:
         camera.capture()
         cv2.imshow("Image", camera.image)
@@ -298,9 +328,16 @@ def camera_image():
 
 if __name__ == "__main__":
     camera = Camera(mock_source="red")
-    camera_test()
+    camera_calibrate()
 
-
+def clear_dir(name="images"):
+    img_path = os.path.dirname(os.path.abspath(__file__)) + f"/{name}/"
+    files = glob.glob(img_path + "*.*")
+    for f in files:
+        try:
+            os.unlink(f)
+        except OSError as e:
+            print(f"Error: {f}, {e.strerror}")
 
 def capture_raw():
     name = input("Folder name: ")
@@ -314,7 +351,6 @@ def capture_raw():
 
     if PI:
         reset()
-        lamp_on()
         camera.capture()
         time.sleep(2)
         motor_on()
@@ -355,7 +391,7 @@ def capture_raw():
                 try:
                     camera.next()
                 except StopIteration:
-                    print(f"Processed {r+1} cards. No more images available.")
+                    print(f"Processed {r + 1} cards. No more images available.")
                     break
         except Exception as e:
             print(f"Error processing card {r}: {str(e)}")
@@ -363,3 +399,4 @@ def capture_raw():
 
     if PI:
         reset()
+
