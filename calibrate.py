@@ -2,13 +2,13 @@ import cv2
 import os
 import glob
 import time
-from camera import camera, PI, Camera
+from camera import PI, Camera
 
 if PI:
-    from mechanics import reset, motor_on, lamp_on, feed_card, feed_reset
+    from mechanics import reset, motor_on, feed_card, feed_reset
 else:
-    from mock_mechanics import reset, motor_on, lamp_on, feed_card, feed_reset
-
+    from mock_mechanics import reset, motor_on, feed_card, feed_reset
+camera = Camera()
 
 def read_templates(name="images2"):
     """
