@@ -14,15 +14,16 @@ import queue
 import threading
 import tkinter as tk
 from pathlib import Path
-from tkinter import filedialog, messagebox, ttk
+from tkinter import filedialog, messagebox, simpledialog, ttk
 from types import SimpleNamespace
+
+import pbn
 
 RANKS = "23456789TJQKA"
 SUIT_SYMBOLS = {"S": "♠", "H": "♥", "D": "♦", "C": "♣"}
 SUIT_ORDER = "SHDC"
 RED = "#c0392b"
 BACKGROUND = "white"  # hand boxes
-PBN_DIR = Path(__file__).parent / "pbns"
 PREVIEW_MAX = (300, 420)  # largest size of the card image, the crop is portrait
 POLL_MS = 100
 PREVIEW_EVERY = 3  # refresh the preview every n polls
@@ -36,7 +37,6 @@ def load_backend(events):
     try:
         import cv2
         from gui_dealer import GuiDealer, reset
-        from pbn_reader import create_packs
 
         dealer = GuiDealer(events)
     except Exception as e:
@@ -45,9 +45,7 @@ def load_backend(events):
     events.put(
         (
             "ready",
-            SimpleNamespace(
-                cv2=cv2, dealer=dealer, reset=reset, create_packs=create_packs
-            ),
+            SimpleNamespace(cv2=cv2, dealer=dealer, reset=reset),
         )
     )
 
@@ -133,6 +131,8 @@ class App(tk.Tk):
         controls.pack(fill="x")
         self.open_button = ttk.Button(controls, text="Open PBN...", command=self.open_pbn)
         self.open_button.pack(side="left")
+        self.new_button = ttk.Button(controls, text="New PBN...", command=self.new_pbn)
+        self.new_button.pack(side="left", padx=4)
         self.file_label = ttk.Label(controls, text="No PBN file selected")
         self.file_label.pack(side="left", padx=8)
         ttk.Label(controls, text="Board:").pack(side="left")
@@ -195,9 +195,11 @@ class App(tk.Tk):
     def update_buttons(self):
         busy = self.dealing()
         state = "disabled" if busy else "normal"
-        self.open_button.config(state="disabled" if self.dealer is None else state)
+        self.open_button.config(state=state)
+        self.new_button.config(state=state)
         self.board_spin.config(state=state)
-        self.deal_button.config(state="normal" if not busy and self.packs else "disabled")
+        can_deal = self.dealer is not None and bool(self.packs)
+        self.deal_button.config(state="normal" if not busy and can_deal else "disabled")
         self.stop_button.config(state="normal" if busy else "disabled")
         self.reveal_button.config(state="normal" if self.complete and not busy else "disabled")
 
@@ -265,8 +267,17 @@ class App(tk.Tk):
         self.dealer = backend.dealer
         self.progress.stop()
         self.progress.config(mode="determinate", value=0)
-        self.status.config(text="Select a PBN file")
+        self.show_status()
         self.update_buttons()
+
+    def show_status(self):
+        """Status line when idle"""
+        if self.dealer is None:
+            self.status.config(text="Starting dealer...")
+        elif self.packs:
+            self.status.config(text="Ready")
+        else:
+            self.status.config(text="Select a PBN file")
 
     # Actions
     def board_number(self):
@@ -278,16 +289,50 @@ class App(tk.Tk):
     def open_pbn(self):
         path = filedialog.askopenfilename(
             title="Select PBN file",
-            initialdir=PBN_DIR,
+            initialdir=pbn.PBN_DIR,
             filetypes=[("PBN files", "*.pbn"), ("All files", "*.*")],
         )
         if not path:
             return
-        self.packs = self.backend.create_packs(Path(path))
-        self.file_label.config(text=f"{Path(path).name}: {len(self.packs)} boards")
-        self.board_spin.config(from_=1 if self.packs else 0, to=len(self.packs))
-        self.board_spin.set(1 if self.packs else 0)
-        self.status.config(text="Ready")
+        self.load_pbn(Path(path))
+
+    def new_pbn(self):
+        """Create a PBN file of random deals named for today's date, and open it"""
+        boards = simpledialog.askinteger(
+            "New PBN",
+            "Number of boards:",
+            initialvalue=pbn.DEFAULT_BOARDS,
+            minvalue=1,
+            maxvalue=99,
+            parent=self,
+        )
+        if boards is None:
+            return
+        path = pbn.PBN_DIR / pbn.default_name()
+        overwrite = False
+        if path.exists():
+            if not messagebox.askyesno(
+                "Bridge dealer", f"{path.name} already exists. Replace it?"
+            ):
+                return
+            overwrite = True
+        try:
+            pbn.create_pbn(path, boards=boards, overwrite=overwrite)
+        except OSError as e:
+            messagebox.showerror("Bridge dealer", f"Could not create {path.name}:\n{e}")
+            return
+        self.load_pbn(path)
+
+    def load_pbn(self, path):
+        packs = pbn.read_packs(path)
+        if not packs:
+            messagebox.showwarning("Bridge dealer", f"No boards found in {path.name}")
+            return
+        self.packs = packs
+        self.file_label.config(text=f"{path.name}: {len(packs)} boards")
+        self.board_spin.config(from_=1, to=len(packs))
+        self.board_spin.set(1)
+        self.show_status()
         self.update_buttons()
 
     def start_deal(self):
