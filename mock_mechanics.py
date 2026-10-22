@@ -2,18 +2,16 @@
 import time
 
 motor = False
-lamp = False
 
 
 def reset():
-    global motor, lamp
+    global motor
     motor = False
-    lamp = False
     state()
 
 
 def motor_on():
-    global motor, lamp
+    global motor
     motor = True
     state()
 
@@ -34,16 +32,10 @@ def feed_reset(duration=0.1):
     time.sleep(duration)
 
 
-def lamp_on():
-    global lamp
-    lamp = True
-    state()
-
-
 def state():
-    global motor, lamp
-    print(f"Motor: {motor} Lamp: {lamp}")
-    return motor, lamp
+    global motor
+    print(f"Motor: {motor}")
+    return motor
 
 
 def board_present():

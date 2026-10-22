@@ -62,11 +62,14 @@ class Camera:
     iter = None
     count = 0
 
-    def __init__(self, mock_source="green2", template="merged"):
+    def __init__(self, mock_source="cards_oct26", template="merged"):
         self.base_path = Path(__file__).parent
         if not PI:
             self.sim_folder = self.base_path.joinpath("rawimages", mock_source)
-            self.iter = self.sim_folder.iterdir()
+            self.files = sorted(
+                self.sim_folder.iterdir(),
+                key=lambda f: (0, int(f.stem), "") if f.stem.isdigit() else (1, 0, f.stem),
+            )
         else:
             self.picam2 = Picamera2()
             self.picam2.preview_configuration.main.size = (640, 480)
@@ -87,7 +90,8 @@ class Camera:
     def capture(self):
         if PI:
             self.image = self.picam2.capture_array()
-        else:
+        elif self.image is None:
+            # Simulation: re-capturing sees the same card until next() feeds it on
             self.next()
         self.suit_image = None
         self.rank_image = None
@@ -100,13 +104,17 @@ class Camera:
         
 
     def next(self):
-        file = self.iter.__next__()
+        """Simulation only: advance to the image of the next card"""
+        if self.count >= len(self.files):
+            # Pack is empty
+            self.image = None
+            return
+        file = self.files[self.count]
         self.count += 1
         print(file, self.count)
-        self.image = cv2.imread(file, cv2.IMREAD_COLOR_BGR)
-        if not PI:
-            cv2.imshow("Next", self.image)
-            cv2.waitKey(1)
+        self.image = cv2.imread(str(file), cv2.IMREAD_COLOR_BGR)
+        cv2.imshow("Next", self.image)
+        cv2.waitKey(1)
 
     def is_ready(self):
         self.capture()
@@ -301,7 +309,10 @@ def camera_test(no_wait=False):
     cv2.namedWindow('Input', cv2.WINDOW_NORMAL)
     cv2.resizeWindow('Input', 500, 500)  # Set window size to 800x600
     while True:
-        camera.capture()
+        if PI:
+            camera.capture()
+        else:
+            camera.next()
         if camera.debug:
             cv2.imshow("Input", camera.image)
         if camera.read_card():
