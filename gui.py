@@ -23,7 +23,7 @@ SUIT_SYMBOLS = {"S": "♠", "H": "♥", "D": "♦", "C": "♣"}
 SUIT_ORDER = "SHDC"
 RED = "#c0392b"
 PBN_DIR = Path(__file__).parent / "pbns"
-PREVIEW_SIZE = (320, 240)
+PREVIEW_MAX = (300, 420)  # largest size of the card image, the crop is portrait
 POLL_MS = 100
 PREVIEW_EVERY = 3  # refresh the preview every n polls
 
@@ -39,6 +39,8 @@ class GuiDealer(Dealer):
         self.events = events
         self.stop_event = threading.Event()
         self.camera.show_image = lambda: None
+        # Last card image with contours and decoded card drawn on it
+        self.card_image = None
 
     def is_ready(self):
         if not PI:
@@ -58,6 +60,15 @@ class GuiDealer(Dealer):
             )
             return True
         return False
+
+    def next_card(self):
+        found = super().next_card()
+        # camera.source is outlined by read_card and labelled by match. Copy it
+        # because the worker thread draws on it again for the next card.
+        source = getattr(self.camera, "source", None)
+        if source is not None:
+            self.card_image = source.copy()
+        return found
 
     def show_debug_images(self):
         pass
@@ -108,6 +119,7 @@ class App(tk.Tk):
         self.packs = []
         self.worker = None
         self.preview_image = None  # keep a reference or Tk drops the image
+        self.shown_image = None
         self.poll_count = 0
         self.events = queue.Queue()
         self.dealer = GuiDealer(self.events)
@@ -142,11 +154,11 @@ class App(tk.Tk):
         self.panels["S"].grid(row=2, column=1, padx=4, pady=4)
         self.preview = tk.Label(
             middle,
-            text="No camera image",
+            text="No card image",
             fg="#aaaaaa",
             bg="#222222",
-            width=PREVIEW_SIZE[0] // 8,
-            height=PREVIEW_SIZE[1] // 16,
+            width=PREVIEW_MAX[0] // 8,
+            height=PREVIEW_MAX[1] // 16,
         )
         self.preview.pack(side="left", anchor="n", padx=8)
 
@@ -188,11 +200,14 @@ class App(tk.Tk):
         self.after(POLL_MS, self.poll)
 
     def update_preview(self):
-        image = self.dealer.camera.image
-        if image is None:
+        image = self.dealer.card_image
+        if image is None or image is self.shown_image:
             return
+        self.shown_image = image
+        h, w = image.shape[:2]
+        scale = min(PREVIEW_MAX[0] / w, PREVIEW_MAX[1] / h)
+        small = cv2.resize(image, (int(w * scale), int(h * scale)))
         # Tk reads PNG data directly, so Pillow is not needed
-        small = cv2.resize(image, PREVIEW_SIZE)
         ok, png = cv2.imencode(".png", small)
         if ok:
             self.preview_image = tk.PhotoImage(data=base64.b64encode(png.tobytes()))

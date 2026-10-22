@@ -144,14 +144,15 @@ class Camera:
         bounds_filtered = filter(lambda x: 1 < x[0] < 100, bounds_all)
         # Sort by largest area
         bounds = sorted(bounds_filtered, key=lambda x: x[2] * x[3], reverse=True)
+        # Outline the contours on self.source so it can be shown by the GUI as well
+        colours = [(255, 0, 0), (0, 255, 0), (0, 0, 255)]
+        for i, b in enumerate(bounds):
+            colour = colours[i] if i <= 2 else (255, 255, 0)
+            # print(f"Bounds {i} = {b}")
+            self.source = cv2.rectangle(
+                self.source, (b[0], b[1]), (b[0] + b[2], b[1] + b[3]), colour, 2
+            )
         if self.debug:
-            colours = [(255, 0, 0), (0, 255, 0), (0, 0, 255)]
-            for i, b in enumerate(bounds):
-                colour = colours[i] if i <= 2 else (255, 255, 0)
-                # print(f"Bounds {i} = {b}")
-                self.source = cv2.rectangle(
-                    self.source, (b[0], b[1]), (b[0] + b[2], b[1] + b[3]), colour, 2
-                )
             cv2.imshow("Contours", self.source)
             cv2.imshow("Binaryf", self.binary)
             cv2.waitKey(1)
