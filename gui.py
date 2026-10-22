@@ -84,9 +84,15 @@ class HandPanel(ttk.LabelFrame):
         self.cards = []
         self.revealed = False
         self.lines = {}
+        self.columnconfigure(0, weight=1)
+        self.rowconfigure(0, weight=1)
+        # The suit lines and the counter share one cell. Whichever is raised is shown,
+        # and the suit lines keep the panel the same size when the counter is shown.
+        self.suits = tk.Frame(self)
+        self.suits.grid(row=0, column=0, sticky="nsew")
         for suit in SUIT_ORDER:
             label = tk.Label(
-                self,
+                self.suits,
                 font=("Courier", 14),
                 anchor="w",
                 width=26,
@@ -94,6 +100,8 @@ class HandPanel(ttk.LabelFrame):
             )
             label.pack(anchor="w")
             self.lines[suit] = label
+        self.counter = tk.Label(self, font=("Helvetica", 56, "bold"), anchor="center")
+        self.counter.grid(row=0, column=0, sticky="nsew")
         self.refresh()
 
     def clear(self):
@@ -114,11 +122,13 @@ class HandPanel(ttk.LabelFrame):
             ranks = sorted(
                 (c[0] for c in self.cards if c[1] == suit), key=RANKS.index, reverse=True
             )
-            if not self.revealed:
-                # Hide the ranks: one * per card in the suit
-                ranks = ["*"] * len(ranks)
             text = " ".join("10" if r == "T" else r for r in ranks) or "-"
             self.lines[suit].config(text=f"{SUIT_SYMBOLS[suit]} {text}")
+        self.counter.config(text=str(len(self.cards)))
+        if self.revealed:
+            self.suits.tkraise()
+        else:
+            self.counter.tkraise()
 
 
 class App(tk.Tk):
