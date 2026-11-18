@@ -101,8 +101,10 @@ def read_boards(file_path: Path) -> List[Board]:
     """
     Read a PBN file and return its boards in file order.
     Boards with a missing or malformed [Deal] tag are skipped with a warning.
+    If a board number appears more than once only the first is kept.
     """
     boards = []
+    seen = set()
     text = Path(file_path).read_text(encoding="utf-8", errors="replace")
     for tags in _records(text):
         try:
@@ -117,6 +119,10 @@ def read_boards(file_path: Path) -> List[Board]:
             number = int(tags["Board"])
         except (KeyError, ValueError):
             number = len(boards) + 1
+        if number in seen:
+            logging.warning(f"Duplicate board {number} skipped")
+            continue
+        seen.add(number)
         boards.append(Board(number, dealer, tags.get("Vulnerable", ""), pack))
     return boards
 

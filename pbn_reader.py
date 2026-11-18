@@ -34,10 +34,15 @@ def parse_pbn(file_path: Path) -> List[Deal]:
     """
     records_strings = _split_pbn(file_path)
     result = []
+    seen = set()
     # Some PBNs have multiple board records per deal
     for record_strings in records_strings:
         try:
             deal = parse_single_deal(record_strings)
+            if deal.board and deal.board in seen:
+                logging.warning(f"Duplicate board {deal.board} skipped")
+                continue
+            seen.add(deal.board)
             result.append(deal)
         except (KeyError, ValueError) as e:
             logging.warning(f"Malformed record {record_strings}: {e}")
